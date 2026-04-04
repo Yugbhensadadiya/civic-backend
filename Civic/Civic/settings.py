@@ -36,6 +36,10 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt.token_blacklist',
 
+    # ✅ Cloudinary (NEW)
+    'cloudinary',
+    'cloudinary_storage',
+
     'accounts',
     'complaints',
     'departments',
@@ -117,31 +121,33 @@ USE_I18N = True
 USE_TZ = True
 
 # ========================
-# STATIC & MEDIA
+# STATIC FILES
 # ========================
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+# ========================
+# ✅ CLOUDINARY MEDIA (FIXED)
+# ========================
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+
+import cloudinary
+
+cloudinary.config(
+    cloud_name=os.environ.get("CLOUDINARY_CLOUD_NAME"),
+    api_key=os.environ.get("CLOUDINARY_API_KEY"),
+    api_secret=os.environ.get("CLOUDINARY_API_SECRET"),
+)
 
 # ========================
-# ✅ CORS (FIXED)
+# CORS
 # ========================
-
-# TEMP for debugging (you can remove later)
 CORS_ALLOW_ALL_ORIGINS = True
-
-# OR production safe (use this instead later)
-# CORS_ALLOWED_ORIGINS = [
-#     "https://civic-frontend-three.vercel.app",
-# ]
-
 CORS_ALLOW_CREDENTIALS = True
 
 # ========================
-# ✅ CSRF (FIXED)
+# CSRF
 # ========================
 CSRF_TRUSTED_ORIGINS = [
     "https://civic-frontend-three.vercel.app",
@@ -184,7 +190,7 @@ AUTH_USER_MODEL = 'accounts.CustomUser'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # ========================
-# EMAIL (OTP FIX)
+# EMAIL (OTP)
 # ========================
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
