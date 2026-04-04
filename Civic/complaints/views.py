@@ -66,7 +66,16 @@ class CreateComplaintView(APIView):
                 data['Category'] = cc.id
 
             if 'image_video' in request.FILES:
-                data['image_video'] = request.FILES['image_video']
+                try:
+                    import cloudinary.uploader
+                    print("--- INITIATING NATIVE BACKEND CLOUDINARY PUSH ---")
+                    upload_result = cloudinary.uploader.upload(request.FILES['image_video'])
+                    data['image_video'] = upload_result.get('secure_url')
+                    print("--- BACKEND CLOUDINARY UPLOAD SUCCESS ---", data['image_video'])
+                except Exception as cloudinary_err:
+                    print("--- BACKEND CLOUDINARY ERROR ---", cloudinary_err)
+                    logger.error(f"Cloudinary upload error: {str(cloudinary_err)}", exc_info=True)
+                    return Response({'success': False, 'error': f"Image upload to Cloudinary failed: {str(cloudinary_err)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
             serializer = ComplaintSerializer(data=data, context={'request': request})
             if serializer.is_valid():
@@ -96,38 +105,5 @@ class CreateComplaintView(APIView):
             print("--- CRITICAL API ERROR ---", str(e))
             logger.error(f"Critical error in CreateComplaintView: {str(e)}", exc_info=True)
             return Response({'success': False, 'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-
-class CloudinarySignatureView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, *args, **kwargs):
-        try:
-            timestamp = int(time.time())
-            
-            params_to_sign = {
-                'timestamp': timestamp,
-            }
-            
-            # Using defaults automatically ingested via settings.py cloudinary.config()
-            api_secret = cloudinary.config().api_secret
-            api_key = cloudinary.config().api_key
-            cloud_name = cloudinary.config().cloud_name
-            
-            signature = cloudinary.utils.api_sign_request(params_to_sign, api_secret)
-            
-            print("=== CLOUDINARY SIGNATURE GENERATED ===")
-            print(f"Timestamp: {timestamp}")
-            print(f"Signature: {signature}")
-
-            return Response({
-                'signature': signature,
-                'timestamp': timestamp,
-                'api_key': api_key,
-                'cloud_name': cloud_name
-            }, status=status.HTTP_200_OK)
-        except Exception as e:
-            print("--- SIGNATURE GEN ERROR ---", str(e))
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 

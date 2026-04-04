@@ -19,7 +19,7 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from django.views.generic import RedirectView
-from complaints.views import CreateComplaintView, CloudinarySignatureView
+from complaints.views import CreateComplaintView
 from complaints.district_views import DistrictDetailView
 from Civic import views
 from Civic.views import getcomplaint,getcomplaintlimit,getpubliccomplaints,compinfo,complaintofficer,officerprofile,officerkpi,adminallcomplaintcart,adimncomplaints,ComplaintDelete,assigncomp,crateofficer,CategoriesList,CategoryDelete,adminstats,TrackComplaint,ComplaintStatus,OfficerDelete,OfficerUpdate,OfficerAnalytics,Logout,UserMonthlyRegistrations,admindashboardcard,UserRoleDistribution,ComplaintStatusTrends,CivicUserActivityView,DepartmentList,UserEmailList
@@ -34,7 +34,6 @@ urlpatterns = [
     path('favicon.ico', RedirectView.as_view(url='/static/favicon.ico')),
     path('admin/', admin.site.urls),
     path('api/raisecomplaint/',CreateComplaintView.as_view(),name='raisecomplaint'),
-    path('api/cloudinary-signature/', CloudinarySignatureView.as_view(), name='cloudinary-signature'),
     path('api/getcomplaint/',getcomplaint.as_view(),name='getcomplaint'),
     path('api/getcomplaintlimit/',getcomplaintlimit.as_view(),name='getcomplaintlimit'),
     path('api/getpubliccomplaints/',getpubliccomplaints.as_view(),name='getpubliccomplaints'),
