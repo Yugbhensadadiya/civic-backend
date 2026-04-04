@@ -118,7 +118,7 @@ def recent_complaints_admin(request):
         recent_complaints = Complaint.objects.all().order_by('-current_time')[:6]
         
         # Serialize the complaints
-        serializer = ComplaintSerializer(recent_complaints, many=True)
+        serializer = ComplaintSerializer(recent_complaints, many=True, context={'request': request})
         
         return Response({
             'success': True,
@@ -191,7 +191,7 @@ def complaintDetails(request, pk):
         compdetail = Complaint.objects.get(pk=pk)
     except Complaint.DoesNotExist:
         return Response({'error': 'Complaint not found'}, status=status.HTTP_404_NOT_FOUND)
-    serializer = ComplaintSerializer(compdetail)
+    serializer = ComplaintSerializer(compdetail, context={'request': request})
     return Response({'compdetail': serializer.data})
 
 
@@ -429,7 +429,7 @@ class officerprofile(APIView):
             in_progress_comp = Complaint.objects.filter(officer_id=officer_id, status='In Process').count()
 
             assigned_complaints = Complaint.objects.filter(officer_id=officer_id)
-            complaints_serializer = ComplaintSerializer(assigned_complaints, many=True)
+            complaints_serializer = ComplaintSerializer(assigned_complaints, many=True, context={'request': request})
 
             return Response({
                 'officer': officer_serializer.data,
@@ -586,7 +586,7 @@ class Updatecomp(APIView):
         allowed = ['title', 'Description', 'priority_level', 'status', 'location_address', 'location_District', 'location_taluk']
         data = {k: v for k, v in request.data.items() if k in allowed}
 
-        serializer = ComplaintSerializer(complaint, data=data, partial=True)
+        serializer = ComplaintSerializer(complaint, data=data, partial=True, context={'request': request})
         if serializer.is_valid():
             serializer.save()
             return Response({'success': True, 'data': serializer.data}, status=status.HTTP_200_OK)
@@ -1014,7 +1014,7 @@ class TrackComplaint(APIView):
     def get(self, request, pk=None):
         try:
             complaint = Complaint.objects.get(id=pk)
-            serializer = ComplaintSerializer(complaint)
+            serializer = ComplaintSerializer(complaint, context={'request': request})
             return Response({
                 'success': True,
                 'data': serializer.data

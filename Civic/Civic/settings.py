@@ -2,20 +2,20 @@ import os
 import dj_database_url
 from pathlib import Path
 from datetime import timedelta
-from django.core.exceptions import ImproperlyConfigured
+import cloudinary
+import cloudinary.uploader
+import cloudinary.api
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # ========================
 # SECURITY
 # ========================
-SECRET_KEY = os.environ.get('SECRET_KEY')
-if not SECRET_KEY:
-    raise ImproperlyConfigured('SECRET_KEY must be set')
+SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-dev-key")
 
-DEBUG = os.environ.get('DEBUG', 'False') == 'True'
+DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = os.environ.get(
+ALLOWED_HOSTS = os.getenv(
     'ALLOWED_HOSTS',
     'localhost,127.0.0.1,.onrender.com,.vercel.app'
 ).split(',')
@@ -36,7 +36,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt.token_blacklist',
 
-    # ✅ Cloudinary (NEW)
+    # Cloudinary
     'cloudinary',
     'cloudinary_storage',
 
@@ -92,7 +92,7 @@ TEMPLATES = [
 WSGI_APPLICATION = 'Civic.wsgi.application'
 
 # ========================
-# DATABASE
+# DATABASE (POSTGRESQL ONLY)
 # ========================
 DATABASES = {
     'default': dj_database_url.config(
@@ -125,20 +125,21 @@ USE_TZ = True
 # ========================
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # ========================
-# ✅ CLOUDINARY MEDIA (FIXED)
+# CLOUDINARY
 # ========================
+
+CLOUDINARY_STORAGE = {
+    'CLOUD_NAME': 'dohsxheen',
+    'API_KEY': '325445428156324',
+    'API_SECRET': 'RkekPuOkm4VlouVS8vU_kZaJLYI',
+}
+
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
-import cloudinary
-
-cloudinary.config(
-    cloud_name=os.environ.get("CLOUDINARY_CLOUD_NAME"),
-    api_key=os.environ.get("CLOUDINARY_API_KEY"),
-    api_secret=os.environ.get("CLOUDINARY_API_SECRET"),
-)
 
 # ========================
 # CORS
@@ -190,17 +191,14 @@ AUTH_USER_MODEL = 'accounts.CustomUser'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # ========================
-# EMAIL (OTP)
+# EMAIL
 # ========================
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER')
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
 
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
-
-if not DEBUG and (not EMAIL_HOST_USER or not EMAIL_HOST_PASSWORD):
-    raise ImproperlyConfigured("Email credentials missing")

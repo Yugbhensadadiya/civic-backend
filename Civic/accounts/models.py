@@ -1,9 +1,27 @@
 from django.db import models
-from django.contrib.auth.models import AbstractUser, PermissionsMixin
+from django.contrib.auth.models import AbstractUser
+from django.utils.translation import gettext_lazy as _
 from .managers import CustomUserManager
 from datetime import datetime as dt
 
-class CustomUser(AbstractUser, PermissionsMixin):
+class CustomUser(AbstractUser):
+    groups = models.ManyToManyField(
+        'auth.Group',
+        verbose_name=_('groups'),
+        blank=True,
+        help_text=_('The groups this user belongs to. A user will get all permissions granted to each of their groups.'),
+        related_name='customuser_set',
+        related_query_name='customuser',
+    )
+    user_permissions = models.ManyToManyField(
+        'auth.Permission',
+        verbose_name=_('user permissions'),
+        blank=True,
+        help_text=_('Specific permissions for this user.'),
+        related_name='customuser_set',
+        related_query_name='customuser',
+    )
+
     CHOICE_FIELDS = (
         ('Civic-User', 'Civic-User'),
         ('Department-User', 'Department-User'),

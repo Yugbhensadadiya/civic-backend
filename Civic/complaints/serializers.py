@@ -2,7 +2,7 @@ from rest_framework import serializers
 from .models import Complaint, ComplaintAssignment
 from departments.models import Officer
 class ComplaintSerializer(serializers.ModelSerializer):
-    image_video = serializers.FileField(required=False, allow_null=True)
+    image_video = serializers.ImageField(required=False, allow_null=True)
     category_name = serializers.CharField(source='Category.name', read_only=True)
     category_code = serializers.CharField(source='Category.code', read_only=True)
     officer_name = serializers.CharField(source='officer_id.name', read_only=True, allow_null=True)
