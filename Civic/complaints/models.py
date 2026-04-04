@@ -5,7 +5,6 @@ from django.utils import timezone
 from departments.models import Officer
 from Categories.models import Category
 from accounts.models import CustomUser
-from cloudinary.models import CloudinaryField
 
 User = get_user_model()
 class Complaint(models.Model):
@@ -27,7 +26,7 @@ class Complaint(models.Model):
     officer_id=models.ForeignKey(Officer, null=True, blank=True, on_delete=models.SET_NULL, related_name='assigned_complaints')
     Category=models.ForeignKey(Category, null=True, blank=True, on_delete=models.CASCADE, related_name='complaints')
     Description=models.CharField(max_length=300)
-    image_video = CloudinaryField('image', null=True, blank=True)
+    image_video = models.URLField(max_length=500, null=True, blank=True)
     location_address=models.CharField(max_length=200)
     location_District=models.CharField(max_length=100)
     location_taluk=models.CharField(max_length=100)

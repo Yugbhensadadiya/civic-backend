@@ -12,10 +12,6 @@ class ComplaintSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
-
-        if instance.image_video:
-            data['image_video'] = instance.image_video.url
-
         return data
     
     def create(self, validated_data):

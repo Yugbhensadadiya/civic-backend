@@ -143,9 +143,9 @@ STORAGES = {
 # ========================
 
 CLOUDINARY_STORAGE = {
-    'CLOUD_NAME': os.environ.get('CLOUDINARY_CLOUD_NAME', 'dohsxheen'),
-    'API_KEY': os.environ.get('CLOUDINARY_API_KEY', '325445428156324'),
-    'API_SECRET': os.environ.get('CLOUDINARY_API_SECRET', 'RkekPuOkm4VlouVS8vU_kZaJLYI'),
+    'CLOUD_NAME': os.environ.get('CLOUDINARY_CLOUD_NAME', ''),
+    'API_KEY': os.environ.get('CLOUDINARY_API_KEY', ''),
+    'API_SECRET': os.environ.get('CLOUDINARY_API_SECRET', ''),
 }
 
 # Initialize cloudinary default behavior for CloudinaryField

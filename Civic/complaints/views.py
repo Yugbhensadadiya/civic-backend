@@ -74,13 +74,13 @@ class CreateComplaintView(APIView):
                 try:
                     complaint = serializer.save()
                     if complaint.image_video:
-                        print("--- CLOUDINARY UPLOAD SUCCESS --- URL:", getattr(complaint.image_video, 'url', None))
+                        print("--- CLOUDINARY UPLOAD SUCCESS --- URL:", complaint.image_video)
                     else:
                         print("--- COMPLAINT SAVED WITHOUT IMAGE ---")
                 except Exception as save_err:
-                    print("--- ERROR DURING DRF SAVE/CLOUDINARY UPLOAD ---", save_err)
+                    print("--- ERROR DURING DRF SAVE ---", save_err)
                     logger.error(f"Save error: {str(save_err)}", exc_info=True)
-                    raise save_err
+                    return Response({'success': False, 'error': f"Database save failed: {str(save_err)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
                 return Response({
                     'success': True,
