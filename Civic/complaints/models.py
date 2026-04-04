@@ -1,4 +1,5 @@
 from django.db import models
+import uuid
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from departments.models import Officer
@@ -8,6 +9,7 @@ from cloudinary.models import CloudinaryField
 
 User = get_user_model()
 class Complaint(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     CHOICE_PRIORITY=(
         ('Low','Low'),
