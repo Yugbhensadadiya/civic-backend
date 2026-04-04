@@ -6,47 +6,70 @@ from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# ========================
+# SECURITY
+# ========================
 SECRET_KEY = os.environ.get('SECRET_KEY')
 if not SECRET_KEY:
-    raise ImproperlyConfigured('The SECRET_KEY environment variable must be set.')
+    raise ImproperlyConfigured('SECRET_KEY must be set')
 
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '*').split(',')
+ALLOWED_HOSTS = os.environ.get(
+    'ALLOWED_HOSTS',
+    'localhost,127.0.0.1,.onrender.com,.vercel.app'
+).split(',')
 
+# ========================
+# APPS
+# ========================
 INSTALLED_APPS = [
-    'accounts',
+    'corsheaders',
+
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'corsheaders',
+
+    'rest_framework',
+    'rest_framework_simplejwt.token_blacklist',
+
+    'accounts',
     'complaints',
     'departments',
     'officer',
     'dashboard',
     'contact_us',
-    'rest_framework',
-    'rest_framework_simplejwt.token_blacklist',
     'Categories',
 ]
 
+# ========================
+# MIDDLEWARE
+# ========================
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
+
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
+
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
+
     'django.middleware.csrf.CsrfViewMiddleware',
+
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
+
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
 ROOT_URLCONF = 'Civic.urls'
 
+# ========================
+# TEMPLATES
+# ========================
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
@@ -64,6 +87,9 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'Civic.wsgi.application'
 
+# ========================
+# DATABASE
+# ========================
 DATABASES = {
     'default': dj_database_url.config(
         default=os.environ.get('DATABASE_URL'),
@@ -72,6 +98,9 @@ DATABASES = {
     )
 }
 
+# ========================
+# PASSWORD VALIDATION
+# ========================
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
@@ -79,11 +108,17 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
+# ========================
+# INTERNATIONALIZATION
+# ========================
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 
+# ========================
+# STATIC & MEDIA
+# ========================
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
@@ -91,45 +126,33 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-CORS_ALLOW_ALL_ORIGINS = os.environ.get('CORS_ALLOW_ALL_ORIGINS', 'False') == 'True'
+# ========================
+# ✅ CORS (FIXED)
+# ========================
 
-CORS_ALLOWED_ORIGINS = [
-    origin.strip() for origin in os.environ.get(
-        'CORS_ALLOWED_ORIGINS',
-        'http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001'
-    ).split(',') if origin.strip()
-]
+# TEMP for debugging (you can remove later)
+CORS_ALLOW_ALL_ORIGINS = True
 
-CORS_ALLOW_CREDENTIALS = os.environ.get('CORS_ALLOW_CREDENTIALS', 'False') == 'True'
+# OR production safe (use this instead later)
+# CORS_ALLOWED_ORIGINS = [
+#     "https://civic-frontend-three.vercel.app",
+# ]
 
-CORS_ALLOW_HEADERS = [
-    'accept',
-    'accept-encoding',
-    'authorization',
-    'content-type',
-    'dnt',
-    'origin',
-    'user-agent',
-    'x-csrftoken',
-    'x-requested-with',
-]
+CORS_ALLOW_CREDENTIALS = True
 
-CORS_EXPOSE_HEADERS = [
-    'access-control-allow-credentials',
-    'authorization',
-    'content-type',
-]
-
+# ========================
+# ✅ CSRF (FIXED)
+# ========================
 CSRF_TRUSTED_ORIGINS = [
-    origin.strip() for origin in os.environ.get(
-        'CSRF_TRUSTED_ORIGINS',
-        'http://localhost:3000,http://127.0.0.1:3000'
-    ).split(',') if origin.strip()
+    "https://civic-frontend-three.vercel.app",
 ]
 
 CSRF_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_HTTPONLY = False
 
+# ========================
+# REST FRAMEWORK
+# ========================
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
@@ -138,31 +161,40 @@ REST_FRAMEWORK = {
     'EXCEPTION_HANDLER': 'accounts.exceptions.custom_exception_handler',
 }
 
+# ========================
+# JWT
+# ========================
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
     'UPDATE_LAST_LOGIN': True,
+
     'ALGORITHM': 'HS256',
     'SIGNING_KEY': SECRET_KEY,
-    'VERIFYING_KEY': None,
+
     'AUTH_HEADER_TYPES': ('Bearer',),
-    'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
-    'USER_ID_FIELD': 'id',
-    'USER_ID_CLAIM': 'user_id',
 }
 
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+# ========================
+# USER MODEL
+# ========================
 AUTH_USER_MODEL = 'accounts.CustomUser'
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# ========================
+# EMAIL (OTP FIX)
+# ========================
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
+
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER or 'noreply@example.com')
+
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 if not DEBUG and (not EMAIL_HOST_USER or not EMAIL_HOST_PASSWORD):
-    raise ImproperlyConfigured('EMAIL_HOST_USER and EMAIL_HOST_PASSWORD must be set in production.')
+    raise ImproperlyConfigured("Email credentials missing")
