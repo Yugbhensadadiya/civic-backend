@@ -1,34 +1,21 @@
 from rest_framework import serializers
 from .models import Complaint, ComplaintAssignment
 from departments.models import Officer
+
 class ComplaintSerializer(serializers.ModelSerializer):
-    image_video = serializers.ImageField(required=False, allow_null=True)
-    category_name = serializers.CharField(source='Category.name', read_only=True)
-    category_code = serializers.CharField(source='Category.code', read_only=True)
-    officer_name = serializers.CharField(source='officer_id.name', read_only=True, allow_null=True)
-    
     class Meta:
         model = Complaint
         fields = '__all__'
-        read_only_fields = ['current_time']
-    
+
     def to_representation(self, instance):
-        representation = super().to_representation(instance)
-        if instance and getattr(instance, 'image_video', None):
-            request = self.context.get('request')
-            try:
-                raw_url = instance.image_video.url if hasattr(instance.image_video, 'url') else str(instance.image_video)
-                if raw_url and request and not raw_url.startswith('http'):
-                    representation['image_video'] = request.build_absolute_uri(raw_url)
-                else:
-                    representation['image_video'] = raw_url
-            except (ValueError, AttributeError):
-                representation['image_video'] = None
-        return representation
+        data = super().to_representation(instance)
+
+        if instance.image_video:
+            data['image_video'] = instance.image_video.url
+
+        return data
     
     def create(self, validated_data):
-        if 'image_video' in validated_data and not validated_data['image_video']:
-            validated_data.pop('image_video')
         
         # Automatically associate the complaint with the authenticated user
         request = self.context.get('request')

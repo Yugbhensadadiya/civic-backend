@@ -39,6 +39,8 @@ class Complaint(models.Model):
     
     def __str__(self):
         return f"{self.title} - {self.Category}"
+    
+
 
 class ComplaintAssignment(models.Model):
     PRIORITY_CHOICES = [

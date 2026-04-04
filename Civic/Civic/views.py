@@ -9,6 +9,8 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.parsers import MultiPartParser, FormParser
+
 
 class StandardResultsSetPagination(PageNumberPagination):
     # Default items per page
@@ -1903,3 +1905,6 @@ def department_complaints(request):
             'error': str(e),
             'message': 'Failed to fetch complaints'
         }, status=500)
+
+class ComplaintCreateView(APIView):
+    parser_classes = (MultiPartParser, FormParser)

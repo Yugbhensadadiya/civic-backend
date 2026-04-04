@@ -96,9 +96,9 @@ WSGI_APPLICATION = 'Civic.wsgi.application'
 # ========================
 DATABASES = {
     'default': dj_database_url.config(
-        default=os.environ.get('DATABASE_URL'),
+        default=os.environ.get('DATABASE_URL', f'sqlite:///{BASE_DIR}/local_db.sqlite3'),
         conn_max_age=600,
-        ssl_require=True
+        ssl_require=False if os.environ.get('DATABASE_URL') is None else True
     )
 }
 
@@ -126,20 +126,37 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+# ========================
+# STORAGES (Django 4.2+)
+# ========================
+STORAGES = {
+    "default": {
+        "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
 
 # ========================
 # CLOUDINARY
 # ========================
 
 CLOUDINARY_STORAGE = {
-    'CLOUD_NAME': 'dohsxheen',
-    'API_KEY': '325445428156324',
-    'API_SECRET': 'RkekPuOkm4VlouVS8vU_kZaJLYI',
+    'CLOUD_NAME': os.environ.get('CLOUDINARY_CLOUD_NAME', 'dohsxheen'),
+    'API_KEY': os.environ.get('CLOUDINARY_API_KEY', '325445428156324'),
+    'API_SECRET': os.environ.get('CLOUDINARY_API_SECRET', 'RkekPuOkm4VlouVS8vU_kZaJLYI'),
 }
 
-DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+# Initialize cloudinary default behavior for CloudinaryField
+cloudinary.config(
+    cloud_name=CLOUDINARY_STORAGE['CLOUD_NAME'],
+    api_key=CLOUDINARY_STORAGE['API_KEY'],
+    api_secret=CLOUDINARY_STORAGE['API_SECRET'],
+    secure=True
+)
 
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
 # ========================
 # CORS
