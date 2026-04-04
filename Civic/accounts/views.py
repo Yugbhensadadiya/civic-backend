@@ -6,7 +6,7 @@ from .models import CustomUser, EmailOTP
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import IsAuthenticated
 from google.oauth2 import id_token
-from google.auth.transport import requests
+from google.auth.transport import requests as google_requests
 from accounts.serializers import UserRegister, UserDetailSerializer, UserUpdateSerializer, UserAdminSerializer
 import os
 import logging
@@ -248,28 +248,35 @@ class GoogleLoginView(APIView):
                 'details': 'Please ensure you are logged in with Google and try again.'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Validate environment variables
+        # Validate environment variables with fallback for development
         GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
         GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET')
         
         logger.info(f'Google Client ID configured: {bool(GOOGLE_CLIENT_ID)}')
         logger.info(f'Google Client Secret configured: {bool(GOOGLE_CLIENT_SECRET)}')
         
-        # Configuration validation
+        # Configuration validation with development fallback
         if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
             logger.error('Google OAuth not properly configured')
+            
+            # For development/testing - provide a helpful error
+            if not GOOGLE_CLIENT_ID:
+                error_details = 'GOOGLE_CLIENT_ID environment variable is not set. Please set it in your Render dashboard.'
+            else:
+                error_details = 'GOOGLE_CLIENT_SECRET environment variable is not set. Please set it in your Render dashboard.'
+            
             return Response({
                 'success': False,
                 'message': 'Google login not configured. Please contact administrator.',
                 'error_code': 'CONFIGURATION_ERROR',
-                'details': 'Google OAuth credentials are not properly set up on the server.'
+                'details': error_details
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
         try:
             logger.info(f'Attempting to verify Google token')
             
             # Verify Google token with enhanced error handling
-            idinfo = id_token.verify_oauth2_token(token, Requests.Request(), GOOGLE_CLIENT_ID)
+            idinfo = id_token.verify_oauth2_token(token, google_requests.Request(), GOOGLE_CLIENT_ID)
             
             # Extract user information safely
             email = idinfo.get('email')
