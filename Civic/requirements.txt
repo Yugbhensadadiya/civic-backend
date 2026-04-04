@@ -1,4 +1,3 @@
-
 asgiref==3.11.1
 beautifulsoup4==4.14.3
 certifi==2026.1.4
@@ -32,3 +31,7 @@ typing_extensions==4.15.0
 tzdata==2025.3
 urllib3==2.6.3
 whitenoise==6.12.0
+
+# ✅ ADD THESE (IMPORTANT)
+cloudinary==1.40.0
+django-cloudinary-storage==0.3.0
