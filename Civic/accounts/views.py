@@ -232,45 +232,47 @@ class LogoutView(APIView):
 
 class GoogleLoginView(APIView):
     def post(self, request):
-        # Debug logging
+        # Enhanced logging
         logger = logging.getLogger(__name__)
         logger.info('Google login request received')
-        logger.info(f'Request data: {request.data}')
         
-        # Get token from request
-        token = request.data.get('token') or request.data.get('id_token')
+        # Get token from multiple possible field names
+        token = request.data.get('token') or request.data.get('id_token') or request.data.get('credential')
+        
+        if not token:
+            logger.warning('No token provided in request')
+            return Response({
+                'success': False,
+                'message': 'Google token is required',
+                'error_code': 'MISSING_TOKEN'
+            }, status=status.HTTP_400_BAD_REQUEST)
         
         # Validate environment variables
         GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
         GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET')
         
-        logger.info(f'GOOGLE_CLIENT_ID configured: {bool(GOOGLE_CLIENT_ID)}')
-        logger.info(f'GOOGLE_CLIENT_SECRET configured: {bool(GOOGLE_CLIENT_SECRET)}')
+        logger.info(f'Google Client ID configured: {bool(GOOGLE_CLIENT_ID)}')
+        logger.info(f'Google Client Secret configured: {bool(GOOGLE_CLIENT_SECRET)}')
         
         # Configuration validation
         if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
             logger.error('Google OAuth not properly configured')
             return Response({
                 'success': False,
-                'message': 'Google login not configured'
+                'message': 'Google login not configured. Please contact administrator.',
+                'error_code': 'CONFIGURATION_ERROR'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
-        # Token validation
-        if not token:
-            logger.warning('No token provided in request')
-            return Response({
-                'success': False,
-                'message': 'Google token is required'
-            }, status=status.HTTP_400_BAD_REQUEST)
         
         try:
             logger.info(f'Attempting to verify Google token')
             
-            # Verify Google token
+            # Verify Google token with enhanced error handling
             idinfo = id_token.verify_oauth2_token(token, Requests.Request(), GOOGLE_CLIENT_ID)
             
+            # Extract user information safely
             email = idinfo.get('email')
             name = idinfo.get('name')
+            picture = idinfo.get('picture')
             
             logger.info(f'Token verified for email: {email}')
             
@@ -279,17 +281,33 @@ class GoogleLoginView(APIView):
                 logger.error('No email found in Google token')
                 return Response({
                     'success': False,
-                    'message': 'Invalid Google token: Email not found'
+                    'message': 'Invalid Google token: Email not found',
+                    'error_code': 'INVALID_EMAIL'
                 }, status=status.HTTP_400_BAD_REQUEST)
             
-            # Get or create user
+            # Check if user exists and is active
+            try:
+                existing_user = CustomUser.objects.get(email=email)
+                if existing_user and not existing_user.is_active:
+                    logger.warning(f'User {email} exists but is not active')
+                    return Response({
+                        'success': False,
+                        'message': 'Account is deactivated. Please contact administrator.',
+                        'error_code': 'ACCOUNT_DEACTIVATED'
+                    }, status=status.HTTP_403_FORBIDDEN)
+            except CustomUser.DoesNotExist:
+                pass  # User doesn't exist, will create new one
+            
+            # Get or create user with proper defaults
             user, created = CustomUser.objects.get_or_create(
                 email=email,
                 defaults={
-                    'username': email.split('@')[0],
-                    'first_name': name.split()[0] if name else '',
-                    'last_name': ' '.join(name.split()[1:]) if name and len(name.split()) > 1 else '',
-                    'User_Role': 'Civic-User'
+                    'username': email.split('@')[0][:150],  # Limit username length
+                    'first_name': name.split()[0][:50] if name else '',
+                    'last_name': ' '.join(name.split()[1:3])[:50] if name and len(name.split()) > 1 else '',  # Limit last name length
+                    'User_Role': 'Civic-User',
+                    'is_active': True,
+                    'profile_picture': picture if picture else ''
                 }
             )
             
@@ -300,15 +318,21 @@ class GoogleLoginView(APIView):
             
             logger.info(f'JWT tokens generated for user: {user.email}')
             
+            # Success response with complete user data
             return Response({
                 'success': True,
                 'access_token': str(refresh.access_token),
                 'refresh_token': str(refresh),
                 'user': {
+                    'id': user.id,
                     'email': user.email,
                     'username': user.username,
-                    'name': user.get_full_name() or user.email,
-                    'role': user.User_Role
+                    'first_name': user.first_name,
+                    'last_name': user.last_name,
+                    'name': user.get_full_name(),
+                    'role': user.User_Role,
+                    'profile_picture': user.profile_picture,
+                    'is_new_user': created
                 }
             }, status=status.HTTP_200_OK)
             
@@ -316,13 +340,16 @@ class GoogleLoginView(APIView):
             logger.error(f'Google token validation error: {str(e)}')
             return Response({
                 'success': False,
-                'message': f'Invalid Google token: {str(e)}'
+                'message': f'Invalid Google token: {str(e)}',
+                'error_code': 'INVALID_TOKEN'
             }, status=status.HTTP_400_BAD_REQUEST)
+            
         except Exception as e:
             logger.error(f'Google login error: {str(e)}', exc_info=True)
             return Response({
                 'success': False,
-                'message': 'Google login failed. Please try again.'
+                'message': 'Google login failed. Please try again.',
+                'error_code': 'INTERNAL_ERROR'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class UserDetail(APIView):
