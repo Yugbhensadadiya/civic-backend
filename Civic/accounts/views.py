@@ -233,7 +233,7 @@ class GoogleLoginView(APIView):
         token = request.data.get('token')
         
         try:
-            GOOGLE_CLIENT_ID = '368010718950-mpbp3m0379j51abunusi6n1o2jtnq715.apps.googleusercontent.com'
+            GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID', '368010718950-mpbp3m0379j51abunusi6n1o2jtnq715.apps.googleusercontent.com')
             idinfo = id_token.verify_oauth2_token(token, requests.Request(), GOOGLE_CLIENT_ID)
             
             email = idinfo.get('email')

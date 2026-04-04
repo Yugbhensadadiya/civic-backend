@@ -21,6 +21,23 @@ ALLOWED_HOSTS = os.getenv(
 ).split(',')
 
 # ========================
+# PRODUCTION SECURITY SETTINGS
+# ========================
+SECURE_HSTS_SECONDS = int(os.getenv('SECURE_HSTS_SECONDS', '31536000'))  # 1 year
+SECURE_SSL_REDIRECT = os.getenv('SECURE_SSL_REDIRECT', 'True') == 'True'
+SECURE_REFERRER_POLICY = 'same-origin'
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_X_FRAME_OPTIONS = 'DENY'
+
+# Session Security
+SESSION_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_HTTPONLY = False
+
+# ========================
 # APPS
 # ========================
 INSTALLED_APPS = [
@@ -163,7 +180,6 @@ DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 # ========================
 CORS_ALLOWED_ORIGINS = [
     "https://civic-frontend-three.vercel.app",
-    "https://civic-frontend-three.vercel.app/",
     "http://localhost:3000",
     "http://localhost:3001",
 ]
@@ -197,6 +213,8 @@ CORS_ALLOW_METHODS = [
 # ========================
 CSRF_TRUSTED_ORIGINS = [
     "https://civic-frontend-three.vercel.app",
+    "http://localhost:3000",
+    "http://localhost:3001",
 ]
 
 CSRF_COOKIE_SECURE = not DEBUG
