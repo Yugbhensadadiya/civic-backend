@@ -11,7 +11,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # ========================
 # SECURITY
 # ========================
-SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-dev-key")
+SECRET_KEY = os.getenv("SECRET_KEY", "mLBbxxbOC-8WW4Sj9FKzK4Cgz-bCxk9U75HoVcXZofGsiKcSZK1Tb6vBrrc98ZFSPWlUnpGsn_pz6MLtK7cbkg")
 
 DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
@@ -27,7 +27,7 @@ SECURE_HSTS_SECONDS = int(os.getenv('SECURE_HSTS_SECONDS', '31536000'))  # 1 yea
 SECURE_HSTS_INCLUDE_SUBDOMAINS = os.getenv('SECURE_HSTS_INCLUDE_SUBDOMAINS', 'True') == 'True'
 SECURE_HSTS_PRELOAD = os.getenv('SECURE_HSTS_PRELOAD', 'True') == 'True'
 SECURE_SSL_REDIRECT = os.getenv('SECURE_SSL_REDIRECT', 'True') == 'True'
-SECURE_REFERRER_POLICY = 'same-origin'
+SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_X_FRAME_OPTIONS = 'DENY'
@@ -35,9 +35,7 @@ SECURE_X_FRAME_OPTIONS = 'DENY'
 # Session Security
 SESSION_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SAMESITE = 'Lax'
-CSRF_COOKIE_SECURE = not DEBUG
-CSRF_COOKIE_HTTPONLY = False
+SESSION_COOKIE_SAMESITE = 'Strict'
 
 # ========================
 # APPS
