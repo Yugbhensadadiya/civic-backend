@@ -6,7 +6,7 @@ class ComplaintSerializer(serializers.ModelSerializer):
     class Meta:
         model = Complaint
         fields = '__all__'
-        read_only_fields = ['id', 'user']
+        read_only_fields = ['id', 'complaint_id', 'user']
 
     def to_representation(self, instance):
         data = super().to_representation(instance)

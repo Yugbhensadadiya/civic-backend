@@ -9,6 +9,7 @@ from cloudinary.models import CloudinaryField
 
 User = get_user_model()
 class Complaint(models.Model):
+    complaint_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
 
     CHOICE_PRIORITY=(
         ('Low','Low'),
