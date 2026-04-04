@@ -232,22 +232,39 @@ class LogoutView(APIView):
 
 class GoogleLoginView(APIView):
     def post(self, request):
-        token = request.data.get('token')
+        # Debug logging
+        logger = logging.getLogger(__name__)
+        logger.info('Google login request received')
+        logger.info(f'Request data: {request.data}')
         
+        # Get token from request
+        token = request.data.get('token') or request.data.get('id_token')
+        
+        # Validate environment variables
+        GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
+        GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET')
+        
+        logger.info(f'GOOGLE_CLIENT_ID configured: {bool(GOOGLE_CLIENT_ID)}')
+        logger.info(f'GOOGLE_CLIENT_SECRET configured: {bool(GOOGLE_CLIENT_SECRET)}')
+        
+        # Configuration validation
+        if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+            logger.error('Google OAuth not properly configured')
+            return Response({
+                'success': False,
+                'message': 'Google login not configured'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        # Token validation
         if not token:
+            logger.warning('No token provided in request')
             return Response({
                 'success': False,
                 'message': 'Google token is required'
             }, status=status.HTTP_400_BAD_REQUEST)
         
         try:
-            # Get Google Client ID from environment
-            GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
-            if not GOOGLE_CLIENT_ID:
-                return Response({
-                    'success': False,
-                    'message': 'Google login not configured'
-                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.info(f'Attempting to verify Google token')
             
             # Verify Google token
             idinfo = id_token.verify_oauth2_token(token, Requests.Request(), GOOGLE_CLIENT_ID)
@@ -255,7 +272,11 @@ class GoogleLoginView(APIView):
             email = idinfo.get('email')
             name = idinfo.get('name')
             
+            logger.info(f'Token verified for email: {email}')
+            
+            # Email validation
             if not email:
+                logger.error('No email found in Google token')
                 return Response({
                     'success': False,
                     'message': 'Invalid Google token: Email not found'
@@ -272,8 +293,12 @@ class GoogleLoginView(APIView):
                 }
             )
             
+            logger.info(f'User {"created" if created else "retrieved"}: {user.email}')
+            
             # Generate JWT tokens
             refresh = RefreshToken.for_user(user)
+            
+            logger.info(f'JWT tokens generated for user: {user.email}')
             
             return Response({
                 'success': True,
@@ -288,15 +313,13 @@ class GoogleLoginView(APIView):
             }, status=status.HTTP_200_OK)
             
         except ValueError as e:
+            logger.error(f'Google token validation error: {str(e)}')
             return Response({
                 'success': False,
                 'message': f'Invalid Google token: {str(e)}'
             }, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            # Log the error for debugging
-            logger = logging.getLogger(__name__)
-            logger.error(f'Google login error: {str(e)}')
-            
+            logger.error(f'Google login error: {str(e)}', exc_info=True)
             return Response({
                 'success': False,
                 'message': 'Google login failed. Please try again.'
