@@ -42,6 +42,7 @@ class CreateComplaintView(APIView):
     def post(self, request, *args, **kwargs):
         print("=== CREATE COMPLAINT REQUEST ===")
         print("FILES payload:", request.FILES)
+        print("DATA payload:", request.data)
         logger.info(f"Received request.FILES: {request.FILES}")
         try:
             data = request.data.copy()
