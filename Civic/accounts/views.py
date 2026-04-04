@@ -244,7 +244,8 @@ class GoogleLoginView(APIView):
             return Response({
                 'success': False,
                 'message': 'Google token is required',
-                'error_code': 'MISSING_TOKEN'
+                'error_code': 'MISSING_TOKEN',
+                'details': 'Please ensure you are logged in with Google and try again.'
             }, status=status.HTTP_400_BAD_REQUEST)
         
         # Validate environment variables
@@ -260,7 +261,8 @@ class GoogleLoginView(APIView):
             return Response({
                 'success': False,
                 'message': 'Google login not configured. Please contact administrator.',
-                'error_code': 'CONFIGURATION_ERROR'
+                'error_code': 'CONFIGURATION_ERROR',
+                'details': 'Google OAuth credentials are not properly set up on the server.'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
         try:
@@ -282,7 +284,8 @@ class GoogleLoginView(APIView):
                 return Response({
                     'success': False,
                     'message': 'Invalid Google token: Email not found',
-                    'error_code': 'INVALID_EMAIL'
+                    'error_code': 'INVALID_EMAIL',
+                    'details': 'The Google token does not contain a valid email address.'
                 }, status=status.HTTP_400_BAD_REQUEST)
             
             # Check if user exists and is active
@@ -293,7 +296,8 @@ class GoogleLoginView(APIView):
                     return Response({
                         'success': False,
                         'message': 'Account is deactivated. Please contact administrator.',
-                        'error_code': 'ACCOUNT_DEACTIVATED'
+                        'error_code': 'ACCOUNT_DEACTIVATED',
+                        'details': 'Your account has been deactivated. Please contact support.'
                     }, status=status.HTTP_403_FORBIDDEN)
             except CustomUser.DoesNotExist:
                 pass  # User doesn't exist, will create new one
@@ -333,23 +337,42 @@ class GoogleLoginView(APIView):
                     'role': user.User_Role,
                     'profile_picture': user.profile_picture,
                     'is_new_user': created
-                }
+                },
+                'message': 'Login successful'
             }, status=status.HTTP_200_OK)
             
         except ValueError as e:
             logger.error(f'Google token validation error: {str(e)}')
-            return Response({
-                'success': False,
-                'message': f'Invalid Google token: {str(e)}',
-                'error_code': 'INVALID_TOKEN'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            error_message = str(e)
+            if 'audience' in error_message.lower():
+                return Response({
+                    'success': False,
+                    'message': 'Invalid Google token: Audience mismatch',
+                    'error_code': 'AUDIENCE_MISMATCH',
+                    'details': 'The Google token was issued for a different application.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            elif 'expired' in error_message.lower():
+                return Response({
+                    'success': False,
+                    'message': 'Google token has expired',
+                    'error_code': 'TOKEN_EXPIRED',
+                    'details': 'Please try logging in with Google again.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                return Response({
+                    'success': False,
+                    'message': f'Invalid Google token: {str(e)}',
+                    'error_code': 'INVALID_TOKEN',
+                    'details': 'The Google token is invalid or malformed.'
+                }, status=status.HTTP_400_BAD_REQUEST)
             
         except Exception as e:
             logger.error(f'Google login error: {str(e)}', exc_info=True)
             return Response({
                 'success': False,
                 'message': 'Google login failed. Please try again.',
-                'error_code': 'INTERNAL_ERROR'
+                'error_code': 'INTERNAL_ERROR',
+                'details': 'An internal server error occurred. Please try again later.'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class UserDetail(APIView):
