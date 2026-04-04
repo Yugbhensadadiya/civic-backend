@@ -12,6 +12,20 @@ class ComplaintSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['current_time']
     
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        if instance and getattr(instance, 'image_video', None):
+            request = self.context.get('request')
+            try:
+                raw_url = instance.image_video.url if hasattr(instance.image_video, 'url') else str(instance.image_video)
+                if raw_url and request and not raw_url.startswith('http'):
+                    representation['image_video'] = request.build_absolute_uri(raw_url)
+                else:
+                    representation['image_video'] = raw_url
+            except (ValueError, AttributeError):
+                representation['image_video'] = None
+        return representation
+    
     def create(self, validated_data):
         if 'image_video' in validated_data and not validated_data['image_video']:
             validated_data.pop('image_video')
