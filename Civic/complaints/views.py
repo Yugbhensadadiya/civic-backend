@@ -9,7 +9,9 @@ from rest_framework.views import APIView
 from rest_framework.generics import ListAPIView
 from rest_framework import generics, status
 from Categories.models import Category
-
+import time
+import cloudinary
+import cloudinary.utils
 
 # Mapping from full department display name → department category code
 DEPT_NAME_TO_CODE = {
@@ -94,5 +96,38 @@ class CreateComplaintView(APIView):
             print("--- CRITICAL API ERROR ---", str(e))
             logger.error(f"Critical error in CreateComplaintView: {str(e)}", exc_info=True)
             return Response({'success': False, 'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class CloudinarySignatureView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        try:
+            timestamp = int(time.time())
+            
+            params_to_sign = {
+                'timestamp': timestamp,
+            }
+            
+            # Using defaults automatically ingested via settings.py cloudinary.config()
+            api_secret = cloudinary.config().api_secret
+            api_key = cloudinary.config().api_key
+            cloud_name = cloudinary.config().cloud_name
+            
+            signature = cloudinary.utils.api_sign_request(params_to_sign, api_secret)
+            
+            print("=== CLOUDINARY SIGNATURE GENERATED ===")
+            print(f"Timestamp: {timestamp}")
+            print(f"Signature: {signature}")
+
+            return Response({
+                'signature': signature,
+                'timestamp': timestamp,
+                'api_key': api_key,
+                'cloud_name': cloud_name
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            print("--- SIGNATURE GEN ERROR ---", str(e))
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 

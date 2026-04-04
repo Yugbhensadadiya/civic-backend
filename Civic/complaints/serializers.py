@@ -3,6 +3,8 @@ from .models import Complaint, ComplaintAssignment
 from departments.models import Officer
 
 class ComplaintSerializer(serializers.ModelSerializer):
+    image_video = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    
     class Meta:
         model = Complaint
         fields = '__all__'
