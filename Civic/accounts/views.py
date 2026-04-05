@@ -2,11 +2,12 @@ from rest_framework.views import APIView
 from rest_framework.generics import ListAPIView, RetrieveUpdateDestroyAPIView
 from rest_framework.response import Response
 from rest_framework import status
-from .models import CustomUser, EmailOTP
+from .models import CustomUser
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from accounts.serializers import UserRegister, UserDetailSerializer, UserUpdateSerializer, UserAdminSerializer
 import os
+import random
 import logging
 from complaints.models import Complaint
 from rest_framework.pagination import PageNumberPagination
@@ -74,16 +75,13 @@ def _serializer_errors_message(errors):
 
 
 def _send_otp_email(email, otp):
-    """Send OTP verification email."""
+    """Send OTP verification email (from_email uses EMAIL_HOST_USER per project settings)."""
+    from_addr = getattr(django_settings, 'EMAIL_HOST_USER', None) or django_settings.DEFAULT_FROM_EMAIL
     try:
         send_mail(
-            subject='CivicTrack — Email Verification OTP',
-            message=(
-                f'Your OTP for CivicTrack email verification is: {otp}\n\n'
-                f'This OTP is valid for 10 minutes.\n'
-                f'Do not share this OTP with anyone.'
-            ),
-            from_email=django_settings.DEFAULT_FROM_EMAIL,
+            subject='Verify your account',
+            message=f'Your OTP is {otp}',
+            from_email=from_addr,
             recipient_list=[email],
             fail_silently=False,
         )
@@ -132,9 +130,10 @@ class LoginView(APIView):
                     )
                 # Block login if email not verified
                 if not user.email_verified:
-                    # Resend OTP so they can verify
-                    otp = EmailOTP.generate(user)
-                    _send_otp_email(user.email, otp)
+                    new_otp = str(random.randint(100000, 999999))
+                    user.otp = new_otp
+                    user.save(update_fields=['otp'])
+                    _send_otp_email_background(user.email, new_otp)
                     return Response(
                         {
                             'success': False,
@@ -221,14 +220,17 @@ class RegisterView(APIView):
         except Exception:
             pass
 
-        otp = EmailOTP.generate(user)
+        otp = str(random.randint(100000, 999999))
+        user.otp = otp
+        user.is_verified = False
+        user.email_verified = False
+        user.save(update_fields=['otp', 'is_verified', 'email_verified'])
         _send_otp_email_background(user.email, otp)
 
-        ok_msg = 'User created successfully. Please verify your email with the OTP we sent.'
         return Response(
             {
                 'success': True,
-                'message': ok_msg,
+                'message': 'User created. OTP sent to email',
                 'email': user.email,
                 'otp_sent': True,
                 'requires_verification': True,
@@ -253,36 +255,40 @@ class VerifyEmailOTP(APIView):
             return Response({'success': False, 'message': 'User not found'}, status=404)
 
         if user.email_verified:
-            # Already verified — just log them in
             refresh = RefreshToken.for_user(user)
             return Response({
                 'success': True,
-                'message': 'Email already verified.',
+                'message': 'Email verified successfully',
                 'access_token': str(refresh.access_token),
                 'refresh_token': str(refresh),
                 'user': {'email': user.email, 'username': user.username, 'name': user.get_full_name() or user.email, 'role': user.User_Role}
             })
 
-        try:
-            record = EmailOTP.objects.get(user=user)
-        except EmailOTP.DoesNotExist:
-            return Response({'success': False, 'message': 'OTP not found. Please request a new one.'}, status=400)
+        stored = (user.otp or '').strip()
+        if not stored:
+            return Response(
+                {
+                    'success': False,
+                    'error': 'Invalid OTP',
+                    'message': 'No OTP on file. Use resend to get a new code.',
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if stored != otp:
+            return Response(
+                {'success': False, 'error': 'Invalid OTP', 'message': 'Invalid OTP'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        if not record.is_valid():
-            return Response({'success': False, 'message': 'OTP has expired. Please request a new one.'}, status=400)
-
-        if record.otp != otp:
-            return Response({'success': False, 'message': 'Invalid OTP. Please try again.'}, status=400)
-
-        # Mark verified
+        user.is_verified = True
         user.email_verified = True
-        user.save(update_fields=['email_verified'])
-        record.delete()
+        user.otp = None
+        user.save(update_fields=['is_verified', 'email_verified', 'otp'])
 
         refresh = RefreshToken.for_user(user)
         return Response({
             'success': True,
-            'message': 'Email verified successfully! Welcome to CivicTrack.',
+            'message': 'Email verified successfully',
             'access_token': str(refresh.access_token),
             'refresh_token': str(refresh),
             'user': {'email': user.email, 'username': user.username, 'name': user.get_full_name() or user.email, 'role': user.User_Role}
@@ -305,12 +311,14 @@ class ResendOTP(APIView):
         if user.email_verified:
             return Response({'success': False, 'message': 'Email is already verified'}, status=400)
 
-        otp  = EmailOTP.generate(user)
-        sent = _send_otp_email(email, otp)
+        new_otp = str(random.randint(100000, 999999))
+        user.otp = new_otp
+        user.save(update_fields=['otp'])
+        _send_otp_email_background(email, new_otp)
         return Response({
             'success': True,
-            'message': 'A new OTP has been sent to your email.' if sent else 'OTP generated but email could not be sent. Check server email config.',
-            'otp_sent': sent,
+            'message': 'A new OTP has been sent to your email.',
+            'otp_sent': True,
         })
 
 
@@ -426,6 +434,8 @@ class GoogleLoginView(APIView):
                     'last_name': ' '.join(name.split()[1:3])[:50] if name and len(name.split()) > 1 else '',  # Limit last name length
                     'User_Role': 'Civic-User',
                     'is_active': True,
+                    'email_verified': True,
+                    'is_verified': True,
                 }
             )
             if created:

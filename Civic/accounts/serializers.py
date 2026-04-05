@@ -87,7 +87,12 @@ class UserRegister(serializers.ModelSerializer):
         password = validated_data.pop('password')
         # Must pop email — passing email=... and **validated_data duplicates the kwarg (TypeError).
         email = validated_data.pop('email')
-        user = CustomUser(email=email, email_verified=False, **validated_data)
+        user = CustomUser(
+            email=email,
+            email_verified=False,
+            is_verified=False,
+            **validated_data,
+        )
         user.set_password(password)
         user.save()
         return user

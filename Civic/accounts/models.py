@@ -39,6 +39,9 @@ class CustomUser(AbstractUser):
     taluka = models.CharField(max_length=100, blank=True, null=True)
     ward_number = models.CharField(max_length=10, blank=True, null=True)
     email_verified = models.BooleanField(default=False)
+    # Manual signup OTP flow (kept in sync with email_verified after OTP verify)
+    is_verified = models.BooleanField(default=False)
+    otp = models.CharField(max_length=6, blank=True, null=True)
     objects = CustomUserManager()
 
     USERNAME_FIELD = "email"

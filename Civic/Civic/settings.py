@@ -146,21 +146,20 @@ USE_TZ = True
 # ========================
 # DATABASE (FIXED)
 # ========================
+
 DATABASE_URL = os.environ.get('DATABASE_URL')
-DATABASE_URL = os.environ.get('DATABASE_URL')
 
-if not DEBUG and not DATABASE_URL:
-    raise ImproperlyConfigured('DATABASE_URL is required in production')
-    raise ImproperlyConfigured('DATABASE_URL is required in production')
-
-DATABASES = {
-    'default': dj_database_url.config(
-        default=DATABASE_URL or f'sqlite:///{BASE_DIR}/local_db.sqlite3',
-        conn_max_age=600,
-        ssl_require=bool(DATABASE_URL),
-    )
-}
-
+if DATABASE_URL:
+    DATABASES = {
+        'default': dj_database_url.parse(DATABASE_URL, conn_max_age=600)
+    }
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 # ========================
 # PASSWORD VALIDATION
 # ========================
