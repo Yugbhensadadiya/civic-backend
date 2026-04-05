@@ -118,18 +118,46 @@ USE_I18N = True
 USE_TZ = True
 
 # ========================
+# TEMPLATES (required for django.contrib.admin)
+# ========================
+TEMPLATES = [
+    {
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [BASE_DIR / 'templates'],
+        'APP_DIRS': True,
+        'OPTIONS': {
+            'context_processors': [
+                'django.template.context_processors.request',
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
+            ],
+        },
+    },
+]
+
+# ========================
+# INTERNATIONALIZATION
+# ========================
+LANGUAGE_CODE = 'en-us'
+TIME_ZONE = 'UTC'
+USE_I18N = True
+USE_TZ = True
+
+# ========================
 # DATABASE (FIXED)
 # ========================
+DATABASE_URL = os.environ.get('DATABASE_URL')
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
 if not DEBUG and not DATABASE_URL:
     raise ImproperlyConfigured('DATABASE_URL is required in production')
+    raise ImproperlyConfigured('DATABASE_URL is required in production')
 
 DATABASES = {
     'default': dj_database_url.config(
-        default=DATABASE_URL,
+        default=DATABASE_URL or f'sqlite:///{BASE_DIR}/local_db.sqlite3',
         conn_max_age=600,
-        ssl_require=True,
+        ssl_require=bool(DATABASE_URL),
     )
 }
 
@@ -165,9 +193,15 @@ CLOUDINARY_STORAGE = {
     'CLOUD_NAME': os.getenv('CLOUDINARY_CLOUD_NAME'),
     'API_KEY': os.getenv('CLOUDINARY_API_KEY'),
     'API_SECRET': os.getenv('CLOUDINARY_API_SECRET'),
+    'CLOUD_NAME': os.getenv('CLOUDINARY_CLOUD_NAME'),
+    'API_KEY': os.getenv('CLOUDINARY_API_KEY'),
+    'API_SECRET': os.getenv('CLOUDINARY_API_SECRET'),
 }
 
 cloudinary.config(
+    cloud_name=CLOUDINARY_STORAGE['CLOUD_NAME'],
+    api_key=CLOUDINARY_STORAGE['API_KEY'],
+    api_secret=CLOUDINARY_STORAGE['API_SECRET'],
     cloud_name=CLOUDINARY_STORAGE['CLOUD_NAME'],
     api_key=CLOUDINARY_STORAGE['API_KEY'],
     api_secret=CLOUDINARY_STORAGE['API_SECRET'],
@@ -202,6 +236,8 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_PERMISSION_CLASSES': [],
     'EXCEPTION_HANDLER': 'accounts.exceptions.custom_exception_handler',
+    'DEFAULT_PERMISSION_CLASSES': [],
+    'EXCEPTION_HANDLER': 'accounts.exceptions.custom_exception_handler',
 }
 
 # ========================
@@ -215,7 +251,15 @@ SIMPLE_JWT = {
     'UPDATE_LAST_LOGIN': True,
     'ALGORITHM': 'HS256',
     'SIGNING_KEY': SECRET_KEY,
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'UPDATE_LAST_LOGIN': True,
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': SECRET_KEY,
     'AUTH_HEADER_TYPES': ('Bearer',),
+    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
+    'TOKEN_TYPE_CLAIM': 'token_type',
+    'JTI_CLAIM': 'jti',
     'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
     'TOKEN_TYPE_CLAIM': 'token_type',
     'JTI_CLAIM': 'jti',
@@ -229,6 +273,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # ========================
 # GOOGLE OAUTH
+# GOOGLE OAUTH
 # ========================
 
 
@@ -241,8 +286,13 @@ def _clean_google_client_id_env(value):
     return s
 
 
-# Env var name must be GOOGLE_CLIENT_ID (not the client id string).
-GOOGLE_CLIENT_ID = _clean_google_client_id_env(os.getenv('GOOGLE_CLIENT_ID', ''))
+# Single Web client ID — set GOOGLE_CLIENT_ID in environment (Render/.env); fallback matches frontend.
+_CANONICAL_GOOGLE_CLIENT_ID = (
+    '368010718950-hcafld60i8i3n95tf8o59h3cvfn525sq.apps.googleusercontent.com'
+)
+GOOGLE_CLIENT_ID = _clean_google_client_id_env(
+    os.getenv('GOOGLE_CLIENT_ID') or _CANONICAL_GOOGLE_CLIENT_ID
+)
 
 # ========================
 # EMAIL
@@ -251,6 +301,6 @@ EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'civictrack.civic@gmail.com'   # Your Gmail address
-EMAIL_HOST_PASSWORD = 'psgrbqukbgzjobdk'  # Gmail App Password (not your login password)
-DEFAULT_FROM_EMAIL = '<civictrack.civic@gmail.com>'  
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER or 'webmaster@localhost'

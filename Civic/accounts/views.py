@@ -5,8 +5,6 @@ from rest_framework import status
 from .models import CustomUser, EmailOTP
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from google.oauth2 import id_token
-from google.auth.transport import requests as google_requests
 from accounts.serializers import UserRegister, UserDetailSerializer, UserUpdateSerializer, UserAdminSerializer
 import os
 import logging
@@ -16,6 +14,8 @@ from django.core.mail import send_mail
 from django.conf import settings as django_settings
 import base64
 import json
+
+from accounts.google_token import verify_google_token, audience_matches_config
 
 
 def _jwt_payload_unverified(token):
@@ -29,18 +29,6 @@ def _jwt_payload_unverified(token):
         return json.loads(raw.decode('utf-8'))
     except Exception:
         return {}
-
-
-def _clean_oauth_client_id_segment(seg):
-    s = (seg or '').strip()
-    if len(s) >= 2 and s[0] == s[-1] and s[0] in ('"', "'"):
-        s = s[1:-1].strip()
-    return s
-
-
-def _google_verify_id_token(token, audience):
-    """Verify Google ID token; audience is str or list of str (must include token's aud)."""
-    return id_token.verify_oauth2_token(token, google_requests.Request(), audience)
 
 
 class TestAPIView(APIView):
@@ -290,35 +278,44 @@ class GoogleLoginView(APIView):
                 'details': 'Please ensure you are logged in with Google and try again.'
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        raw_client_ids = (getattr(django_settings, 'GOOGLE_CLIENT_ID', None) or os.getenv('GOOGLE_CLIENT_ID', '')).strip()
-        if not raw_client_ids:
-            logger.error('GOOGLE_CLIENT_ID is not set in Django settings / environment')
+        expected_client_id = getattr(django_settings, 'GOOGLE_CLIENT_ID', '') or ''
+        if not expected_client_id:
+            logger.error('GOOGLE_CLIENT_ID is empty in Django settings')
             return Response({
                 'success': False,
                 'message': 'Google login not configured. Please contact administrator.',
                 'error_code': 'CONFIGURATION_ERROR',
-                'details': 'Set GOOGLE_CLIENT_ID on Render to the same Web client ID as NEXT_PUBLIC_GOOGLE_CLIENT_ID on Vercel.',
+                'details': 'Set GOOGLE_CLIENT_ID in the environment to your Web client ID.',
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-        configured_ids = [
-            _clean_oauth_client_id_segment(x)
-            for x in raw_client_ids.split(',')
-            if _clean_oauth_client_id_segment(x)
-        ]
-        audience = configured_ids[0] if len(configured_ids) == 1 else configured_ids
 
         unverified = _jwt_payload_unverified(token)
         token_aud = unverified.get('aud')
         logger.info(
-            'Google token aud (from JWT)=%s iss=%s configured_client_id(s)=%s',
+            'Google token aud (JWT payload, unverified)=%s iss=%s expected_client_id=%s',
             token_aud,
             unverified.get('iss'),
-            configured_ids,
+            expected_client_id,
         )
 
         try:
-            idinfo = _google_verify_id_token(token, audience)
-            
+            idinfo = verify_google_token(token)
+
+            if not audience_matches_config(idinfo):
+                logger.warning(
+                    'Audience mismatch after verify: idinfo[aud]=%r settings.GOOGLE_CLIENT_ID=%r',
+                    idinfo.get('aud'),
+                    expected_client_id,
+                )
+                return Response({
+                    'success': False,
+                    'message': 'Invalid Google token: Audience mismatch',
+                    'error_code': 'AUDIENCE_MISMATCH',
+                    'details': (
+                        f'Token aud={idinfo.get("aud")!r} must equal '
+                        f'settings.GOOGLE_CLIENT_ID={expected_client_id!r}.'
+                    ),
+                }, status=status.HTTP_400_BAD_REQUEST)
+
             # Extract user information safely
             email = idinfo.get('email')
             name = idinfo.get('name')
@@ -406,8 +403,8 @@ class GoogleLoginView(APIView):
                     'message': 'Invalid Google token: Audience mismatch',
                     'error_code': 'AUDIENCE_MISMATCH',
                     'details': (
-                        f'Token aud={token_aud!r} must match GOOGLE_CLIENT_ID on the server '
-                        f'({configured_ids!r}). Use the same Web client ID as NEXT_PUBLIC_GOOGLE_CLIENT_ID on Vercel.'
+                        f'Token aud (from JWT)={token_aud!r} must match '
+                        f'settings.GOOGLE_CLIENT_ID={expected_client_id!r} (same as NEXT_PUBLIC_GOOGLE_CLIENT_ID).'
                     ),
                 }, status=status.HTTP_400_BAD_REQUEST)
             elif 'expired' in error_message.lower():
