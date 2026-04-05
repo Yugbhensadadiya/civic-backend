@@ -10,6 +10,9 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import MultiPartParser, FormParser
+from django.core.mail import send_mail
+from django.http import JsonResponse
+from django.conf import settings
 
 
 class StandardResultsSetPagination(PageNumberPagination):
@@ -1908,3 +1911,16 @@ def department_complaints(request):
 
 class ComplaintCreateView(APIView):
     parser_classes = (MultiPartParser, FormParser)
+
+def test_email(request):
+    try:
+        send_mail(
+            "Test Email",
+            "This is a test email from deployed server",
+            settings.EMAIL_HOST_USER,
+            ["your_real_email@gmail.com"],  # change this
+            fail_silently=False,
+        )
+        return JsonResponse({"status": "Email sent successfully"})
+    except Exception as e:
+        return JsonResponse({"error": str(e)})
