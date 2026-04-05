@@ -35,3 +35,4 @@ whitenoise==6.12.0
 # ✅ ADD THESE (IMPORTANT)
 cloudinary==1.40.0
 django-cloudinary-storage==0.3.0
+sendgrid>=6.11.0,<7

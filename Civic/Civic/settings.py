@@ -284,16 +284,14 @@ GOOGLE_CLIENT_ID = _clean_google_client_id_env(
 )
 
 # ========================
-# EMAIL
+# EMAIL (SendGrid Web API for OTP — see accounts.sendgrid_email.send_otp_email)
 # ========================
 
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+SENDGRID_API_KEY = os.getenv('SENDGRID_API_KEY', '')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', '')
 
-EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.sendgrid.net')
-EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
-EMAIL_USE_TLS = True
-
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')   # apikey
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
-
-DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL')
+# Django send_mail (e.g. legacy test views): avoid SMTP; console in DEBUG, discard otherwise.
+if DEBUG:
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+else:
+    EMAIL_BACKEND = 'django.core.mail.backends.dummy.EmailBackend'

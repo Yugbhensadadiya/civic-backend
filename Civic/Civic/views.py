@@ -1914,10 +1914,11 @@ class ComplaintCreateView(APIView):
 
 def test_email(request):
     try:
+        from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', None) or 'noreply@example.com'
         send_mail(
             "Test Email",
             "This is a test email from deployed server",
-            settings.EMAIL_HOST_USER,
+            from_email,
             ["your_real_email@gmail.com"],  # change this
             fail_silently=False,
         )

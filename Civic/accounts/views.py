@@ -12,11 +12,11 @@ import logging
 from complaints.models import Complaint
 from rest_framework.pagination import PageNumberPagination
 from django.db import IntegrityError
-from django.core.mail import send_mail
 from django.conf import settings as django_settings
 import base64
 import json
-import threading
+
+from accounts.sendgrid_email import send_otp_email
 
 from accounts.google_token import verify_google_token, audience_matches_config
 
@@ -74,38 +74,6 @@ def _serializer_errors_message(errors):
     return str(errors)
 
 
-def _send_otp_email(email, otp):
-    """Send OTP verification email (from_email uses EMAIL_HOST_USER per project settings)."""
-    from_addr = getattr(django_settings, 'EMAIL_HOST_USER', None) or django_settings.DEFAULT_FROM_EMAIL
-    try:
-        send_mail(
-            subject='Verify your account',
-            message=f'Your OTP is {otp}',
-            from_email=from_addr,
-            recipient_list=[email],
-            fail_silently=False,
-        )
-        return True
-    except Exception as e:
-        print(f'Email send error: {e}')
-        return False
-
-
-def _send_otp_email_background(email_addr, otp_code):
-    """Run SMTP in a daemon thread so /api/register/ returns immediately (avoids client timeouts)."""
-
-    def _run():
-        log = logging.getLogger(__name__)
-        try:
-            ok = _send_otp_email(email_addr, otp_code)
-            if not ok:
-                log.error('OTP email failed for %s — check EMAIL_* / SMTP', email_addr)
-        except Exception:
-            log.exception('OTP email error for %s', email_addr)
-
-    threading.Thread(target=_run, daemon=True).start()
-
-
 class LoginView(APIView):
     authentication_classes = []
     permission_classes = [AllowAny]
@@ -133,7 +101,7 @@ class LoginView(APIView):
                     new_otp = str(random.randint(100000, 999999))
                     user.otp = new_otp
                     user.save(update_fields=['otp'])
-                    _send_otp_email_background(user.email, new_otp)
+                    send_otp_email(user.email, new_otp)
                     return Response(
                         {
                             'success': False,
@@ -225,7 +193,9 @@ class RegisterView(APIView):
         user.is_verified = False
         user.email_verified = False
         user.save(update_fields=['otp', 'is_verified', 'email_verified'])
-        _send_otp_email_background(user.email, otp)
+        print('OTP:', otp)
+        print('Sending to:', user.email)
+        send_otp_email(user.email, otp)
 
         return Response(
             {
@@ -314,7 +284,7 @@ class ResendOTP(APIView):
         new_otp = str(random.randint(100000, 999999))
         user.otp = new_otp
         user.save(update_fields=['otp'])
-        _send_otp_email_background(email, new_otp)
+        send_otp_email(email, new_otp)
         return Response({
             'success': True,
             'message': 'A new OTP has been sent to your email.',
