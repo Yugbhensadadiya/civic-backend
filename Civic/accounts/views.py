@@ -248,35 +248,28 @@ class GoogleLoginView(APIView):
                 'details': 'Please ensure you are logged in with Google and try again.'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Validate environment variables with fallback for development
-        GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
-        GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET')
-        
-        logger.info(f'Google Client ID configured: {bool(GOOGLE_CLIENT_ID)}')
-        logger.info(f'Google Client Secret configured: {bool(GOOGLE_CLIENT_SECRET)}')
-        
-        # Configuration validation with development fallback
-        if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
-            logger.error('Google OAuth not properly configured')
-            
-            # For development/testing - provide a helpful error
-            if not GOOGLE_CLIENT_ID:
-                error_details = 'GOOGLE_CLIENT_ID environment variable is not set. Please set it in your Render dashboard.'
-            else:
-                error_details = 'GOOGLE_CLIENT_SECRET environment variable is not set. Please set it in your Render dashboard.'
-            
+        # ID token verification only needs the OAuth 2.0 client ID(s) as audience — not the client secret.
+        raw_client_ids = os.getenv('GOOGLE_CLIENT_ID', '').strip()
+        if not raw_client_ids:
+            logger.error('GOOGLE_CLIENT_ID is not set')
             return Response({
                 'success': False,
                 'message': 'Google login not configured. Please contact administrator.',
                 'error_code': 'CONFIGURATION_ERROR',
-                'details': error_details
+                'details': 'GOOGLE_CLIENT_ID environment variable is not set. Set it in Render to your Web application client ID.',
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        audience = [x.strip() for x in raw_client_ids.split(',') if x.strip()]
+        if len(audience) == 1:
+            audience = audience[0]
+
+        logger.info('Google Client ID(s) configured for token verification: %s', bool(audience))
         
         try:
-            logger.info(f'Attempting to verify Google token')
+            logger.info('Attempting to verify Google ID token')
             
-            # Verify Google token with enhanced error handling
-            idinfo = id_token.verify_oauth2_token(token, google_requests.Request(), GOOGLE_CLIENT_ID)
+            # Verify Google token (JWT credential from @react-oauth/google)
+            idinfo = id_token.verify_oauth2_token(token, google_requests.Request(), audience)
             
             # Extract user information safely
             email = idinfo.get('email')
@@ -309,7 +302,7 @@ class GoogleLoginView(APIView):
             except CustomUser.DoesNotExist:
                 pass  # User doesn't exist, will create new one
             
-            # Get or create user with proper defaults
+            # Get or create user with proper defaults (CustomUser has no profile_picture field)
             user, created = CustomUser.objects.get_or_create(
                 email=email,
                 defaults={
@@ -318,7 +311,6 @@ class GoogleLoginView(APIView):
                     'last_name': ' '.join(name.split()[1:3])[:50] if name and len(name.split()) > 1 else '',  # Limit last name length
                     'User_Role': 'Civic-User',
                     'is_active': True,
-                    'profile_picture': picture if picture else ''
                 }
             )
             
@@ -326,14 +318,20 @@ class GoogleLoginView(APIView):
             
             # Generate JWT tokens
             refresh = RefreshToken.for_user(user)
+            access_str = str(refresh.access_token)
+            refresh_str = str(refresh)
             
             logger.info(f'JWT tokens generated for user: {user.email}')
             
             # Success response with complete user data
             return Response({
                 'success': True,
-                'access_token': str(refresh.access_token),
-                'refresh_token': str(refresh),
+                # SimpleJWT-style keys (for clients expecting access / refresh)
+                'access': access_str,
+                'refresh': refresh_str,
+                # Legacy keys (existing frontend)
+                'access_token': access_str,
+                'refresh_token': refresh_str,
                 'user': {
                     'id': user.id,
                     'email': user.email,
@@ -342,7 +340,7 @@ class GoogleLoginView(APIView):
                     'last_name': user.last_name,
                     'name': user.get_full_name(),
                     'role': user.User_Role,
-                    'profile_picture': user.profile_picture,
+                    'profile_picture': picture or '',
                     'is_new_user': created
                 },
                 'message': 'Login successful'

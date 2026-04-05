@@ -15,6 +15,11 @@ SECRET_KEY = os.getenv("SECRET_KEY", "mLBbxxbOC-8WW4Sj9FKzK4Cgz-bCxk9U75HoVcXZof
 
 DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
+# Render / reverse proxy: so request.is_secure() and URL building are correct
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    USE_X_FORWARDED_HOST = True
+
 ALLOWED_HOSTS = os.getenv(
     'ALLOWED_HOSTS',
     'localhost,127.0.0.1,.onrender.com,.vercel.app'
@@ -180,6 +185,7 @@ DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 # ========================
 CORS_ALLOWED_ORIGINS = [
     "https://civic-frontend-three.vercel.app",
+    "https://civic-frontend-by7vumq3h-yugpatel559977-6965s-projects.vercel.app",
     "http://localhost:3000",
     "http://localhost:3001",
 ]
@@ -213,6 +219,7 @@ CORS_ALLOW_METHODS = [
 # ========================
 CSRF_TRUSTED_ORIGINS = [
     "https://civic-frontend-three.vercel.app",
+    "https://civic-frontend-by7vumq3h-yugpatel559977-6965s-projects.vercel.app",
     "http://localhost:3000",
     "http://localhost:3001",
 ]
