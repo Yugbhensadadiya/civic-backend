@@ -92,18 +92,44 @@ ROOT_URLCONF = 'Civic.urls'
 WSGI_APPLICATION = 'Civic.wsgi.application'
 
 # ========================
+# TEMPLATES (required for django.contrib.admin)
+# ========================
+TEMPLATES = [
+    {
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [BASE_DIR / 'templates'],
+        'APP_DIRS': True,
+        'OPTIONS': {
+            'context_processors': [
+                'django.template.context_processors.request',
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
+            ],
+        },
+    },
+]
+
+# ========================
+# INTERNATIONALIZATION
+# ========================
+LANGUAGE_CODE = 'en-us'
+TIME_ZONE = 'UTC'
+USE_I18N = True
+USE_TZ = True
+
+# ========================
 # DATABASE (FIXED)
 # ========================
-DATABASE_URL = os.environ.get("DATABASE_URL")
+DATABASE_URL = os.environ.get('DATABASE_URL')
 
 if not DEBUG and not DATABASE_URL:
-    raise ImproperlyConfigured("DATABASE_URL is required in production")
+    raise ImproperlyConfigured('DATABASE_URL is required in production')
 
 DATABASES = {
-    "default": dj_database_url.parse(
-        DATABASE_URL,
+    'default': dj_database_url.config(
+        default=DATABASE_URL,
         conn_max_age=600,
-        ssl_require=True
+        ssl_require=True,
     )
 }
 
@@ -174,6 +200,8 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
+    'DEFAULT_PERMISSION_CLASSES': [],
+    'EXCEPTION_HANDLER': 'accounts.exceptions.custom_exception_handler',
 }
 
 # ========================
@@ -182,7 +210,15 @@ REST_FRAMEWORK = {
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'UPDATE_LAST_LOGIN': True,
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': SECRET_KEY,
     'AUTH_HEADER_TYPES': ('Bearer',),
+    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
+    'TOKEN_TYPE_CLAIM': 'token_type',
+    'JTI_CLAIM': 'jti',
 }
 
 # ========================
@@ -192,12 +228,21 @@ AUTH_USER_MODEL = 'accounts.CustomUser'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # ========================
-# GOOGLE OAUTH (FIXED 🔥)
+# GOOGLE OAUTH
 # ========================
-def clean(value):
-    return value.strip().replace('"', '').replace("'", "")
 
-GOOGLE_CLIENT_ID = clean(os.getenv("368010718950-hcafld60i8i3n95tf8o59h3cvfn525sq.apps.googleusercontent.com", ""))
+
+def _clean_google_client_id_env(value):
+    if not value:
+        return ''
+    s = value.strip()
+    if len(s) >= 2 and s[0] == s[-1] and s[0] in ('"', "'"):
+        s = s[1:-1].strip()
+    return s
+
+
+# Env var name must be GOOGLE_CLIENT_ID (not the client id string).
+GOOGLE_CLIENT_ID = _clean_google_client_id_env(os.getenv('GOOGLE_CLIENT_ID', ''))
 
 # ========================
 # EMAIL
