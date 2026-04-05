@@ -296,5 +296,16 @@ DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 # GOOGLE SIGN-IN (ID token verification)
 # ========================
 # Must match frontend NEXT_PUBLIC_GOOGLE_CLIENT_ID exactly (Web client ID from Google Cloud).
-# Multiple IDs: comma-separated, no spaces (or spaces are stripped per ID).
-GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID', '').strip()
+# Multiple IDs: comma-separated. Strips wrapping quotes (common copy/paste mistake in Render/Vercel).
+
+
+def _strip_optional_quotes(value):
+    if not value:
+        return ''
+    s = value.strip()
+    if len(s) >= 2 and s[0] == s[-1] and s[0] in ('"', "'"):
+        s = s[1:-1].strip()
+    return s
+
+
+GOOGLE_CLIENT_ID = _strip_optional_quotes(os.getenv('GOOGLE_CLIENT_ID', ''))

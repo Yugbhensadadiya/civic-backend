@@ -31,6 +31,13 @@ def _jwt_payload_unverified(token):
         return {}
 
 
+def _clean_oauth_client_id_segment(seg):
+    s = (seg or '').strip()
+    if len(s) >= 2 and s[0] == s[-1] and s[0] in ('"', "'"):
+        s = s[1:-1].strip()
+    return s
+
+
 def _google_verify_id_token(token, audience):
     """Verify Google ID token; audience is str or list of str (must include token's aud)."""
     return id_token.verify_oauth2_token(token, google_requests.Request(), audience)
@@ -293,7 +300,11 @@ class GoogleLoginView(APIView):
                 'details': 'Set GOOGLE_CLIENT_ID on Render to the same Web client ID as NEXT_PUBLIC_GOOGLE_CLIENT_ID on Vercel.',
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        configured_ids = [x.strip() for x in raw_client_ids.split(',') if x.strip()]
+        configured_ids = [
+            _clean_oauth_client_id_segment(x)
+            for x in raw_client_ids.split(',')
+            if _clean_oauth_client_id_segment(x)
+        ]
         audience = configured_ids[0] if len(configured_ids) == 1 else configured_ids
 
         unverified = _jwt_payload_unverified(token)
