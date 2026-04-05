@@ -136,15 +136,15 @@ STORAGES = {
 # CLOUDINARY
 # ========================
 CLOUDINARY_STORAGE = {
-    'CLOUD_NAME': os.getenv('dohsxheen'),
-    'API_KEY': os.getenv('325445428156324'),
-    'API_SECRET': os.getenv('RkekPuOkm4VlouVS8vU_kZaJLYI'),
+    'CLOUD_NAME': os.getenv('CLOUDINARY_CLOUD_NAME'),
+    'API_KEY': os.getenv('CLOUDINARY_API_KEY'),
+    'API_SECRET': os.getenv('CLOUDINARY_API_SECRET'),
 }
 
 cloudinary.config(
-    cloud_name=CLOUDINARY_STORAGE['dohsxheen'],
-    api_key=CLOUDINARY_STORAGE['325445428156324'],
-    api_secret=CLOUDINARY_STORAGE['RkekPuOkm4VlouVS8vU_kZaJLYI'],
+    cloud_name=CLOUDINARY_STORAGE['CLOUD_NAME'],
+    api_key=CLOUDINARY_STORAGE['API_KEY'],
+    api_secret=CLOUDINARY_STORAGE['API_SECRET'],
     secure=True
 )
 
