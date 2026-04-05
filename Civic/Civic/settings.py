@@ -2,6 +2,7 @@ import os
 import dj_database_url
 from pathlib import Path
 from datetime import timedelta
+from django.core.exceptions import ImproperlyConfigured
 import cloudinary
 import cloudinary.uploader
 import cloudinary.api
@@ -20,10 +21,14 @@ if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     USE_X_FORWARDED_HOST = True
 
-ALLOWED_HOSTS = os.getenv(
-    'ALLOWED_HOSTS',
-    'localhost,127.0.0.1,.onrender.com,.vercel.app'
-).split(',')
+ALLOWED_HOSTS = [
+    h.strip()
+    for h in os.getenv(
+        'ALLOWED_HOSTS',
+        'localhost,127.0.0.1,.onrender.com,.vercel.app',
+    ).split(',')
+    if h.strip()
+]
 
 # ========================
 # PRODUCTION SECURITY SETTINGS
@@ -114,13 +119,21 @@ TEMPLATES = [
 WSGI_APPLICATION = 'Civic.wsgi.application'
 
 # ========================
-# DATABASE (POSTGRESQL ONLY)
+# DATABASE
 # ========================
+# Production (e.g. Render): DATABASE_URL must be set — no silent SQLite fallback.
+# Local dev: omit DATABASE_URL to use SQLite.
+_database_url = os.environ.get('DATABASE_URL')
+if not DEBUG and not _database_url:
+    raise ImproperlyConfigured(
+        'DATABASE_URL is required when DEBUG=False (set it in Render to your PostgreSQL URL).'
+    )
+
 DATABASES = {
     'default': dj_database_url.config(
-        default=os.environ.get('DATABASE_URL', f'sqlite:///{BASE_DIR}/local_db.sqlite3'),
+        default=_database_url or f'sqlite:///{BASE_DIR}/local_db.sqlite3',
         conn_max_age=600,
-        ssl_require=False if os.environ.get('DATABASE_URL') is None else True
+        ssl_require=bool(_database_url),
     )
 }
 
@@ -183,6 +196,8 @@ DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 # ========================
 # CORS
 # ========================
+# Primary production frontend + preview URLs + local dev.
+# Must match the browser origin exactly (scheme + host, no trailing slash).
 CORS_ALLOWED_ORIGINS = [
     "https://civic-frontend-three.vercel.app",
     "https://civic-frontend-by7vumq3h-yugpatel559977-6965s-projects.vercel.app",
@@ -276,3 +291,10 @@ EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
 
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+
+# ========================
+# GOOGLE SIGN-IN (ID token verification)
+# ========================
+# Must match frontend NEXT_PUBLIC_GOOGLE_CLIENT_ID exactly (Web client ID from Google Cloud).
+# Multiple IDs: comma-separated, no spaces (or spaces are stripped per ID).
+GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID', '').strip()

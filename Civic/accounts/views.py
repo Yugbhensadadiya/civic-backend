@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from .models import CustomUser, EmailOTP
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 from accounts.serializers import UserRegister, UserDetailSerializer, UserUpdateSerializer, UserAdminSerializer
@@ -14,6 +14,26 @@ from complaints.models import Complaint
 from rest_framework.pagination import PageNumberPagination
 from django.core.mail import send_mail
 from django.conf import settings as django_settings
+import base64
+import json
+
+
+def _jwt_payload_unverified(token):
+    """Decode JWT payload only for logging (does not verify signature)."""
+    try:
+        parts = token.split('.')
+        if len(parts) != 3:
+            return {}
+        pad = '=' * ((4 - len(parts[1]) % 4) % 4)
+        raw = base64.urlsafe_b64decode(parts[1] + pad)
+        return json.loads(raw.decode('utf-8'))
+    except Exception:
+        return {}
+
+
+def _google_verify_id_token(token, audience):
+    """Verify Google ID token; audience is str or list of str (must include token's aud)."""
+    return id_token.verify_oauth2_token(token, google_requests.Request(), audience)
 
 
 class TestAPIView(APIView):
@@ -45,6 +65,9 @@ def _send_otp_email(email, otp):
 
 
 class LoginView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
     def post(self, request):
         email = request.data.get('email')
         password = request.data.get('password')
@@ -99,6 +122,9 @@ class LoginView(APIView):
             )
 
 class RegisterView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
     def post(self, request):
         username = request.data.get('username')
         email = request.data.get('email')
@@ -146,6 +172,9 @@ class RegisterView(APIView):
         }, status=status.HTTP_201_CREATED)
 
 class VerifyEmailOTP(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
     def post(self, request):
         email = request.data.get('email', '').strip().lower()
         otp   = request.data.get('otp', '').strip()
@@ -196,6 +225,9 @@ class VerifyEmailOTP(APIView):
 
 
 class ResendOTP(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
     def post(self, request):
         email = request.data.get('email', '').strip().lower()
         if not email:
@@ -231,14 +263,17 @@ class LogoutView(APIView):
             return Response({'success': True, 'message': 'Logged out successfully'}, status=status.HTTP_200_OK)
 
 class GoogleLoginView(APIView):
+    """Exchange Google ID token for app JWT. No Authorization header required."""
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
     def post(self, request):
-        # Enhanced logging
         logger = logging.getLogger(__name__)
-        logger.info('Google login request received')
-        
-        # Get token from multiple possible field names
+        origin = request.META.get('HTTP_ORIGIN', '')
+        logger.info('Google login request origin=%s', origin)
+
         token = request.data.get('token') or request.data.get('id_token') or request.data.get('credential')
-        
+
         if not token:
             logger.warning('No token provided in request')
             return Response({
@@ -247,29 +282,31 @@ class GoogleLoginView(APIView):
                 'error_code': 'MISSING_TOKEN',
                 'details': 'Please ensure you are logged in with Google and try again.'
             }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # ID token verification only needs the OAuth 2.0 client ID(s) as audience — not the client secret.
-        raw_client_ids = os.getenv('GOOGLE_CLIENT_ID', '').strip()
+
+        raw_client_ids = (getattr(django_settings, 'GOOGLE_CLIENT_ID', None) or os.getenv('GOOGLE_CLIENT_ID', '')).strip()
         if not raw_client_ids:
-            logger.error('GOOGLE_CLIENT_ID is not set')
+            logger.error('GOOGLE_CLIENT_ID is not set in Django settings / environment')
             return Response({
                 'success': False,
                 'message': 'Google login not configured. Please contact administrator.',
                 'error_code': 'CONFIGURATION_ERROR',
-                'details': 'GOOGLE_CLIENT_ID environment variable is not set. Set it in Render to your Web application client ID.',
+                'details': 'Set GOOGLE_CLIENT_ID on Render to the same Web client ID as NEXT_PUBLIC_GOOGLE_CLIENT_ID on Vercel.',
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        audience = [x.strip() for x in raw_client_ids.split(',') if x.strip()]
-        if len(audience) == 1:
-            audience = audience[0]
+        configured_ids = [x.strip() for x in raw_client_ids.split(',') if x.strip()]
+        audience = configured_ids[0] if len(configured_ids) == 1 else configured_ids
 
-        logger.info('Google Client ID(s) configured for token verification: %s', bool(audience))
-        
+        unverified = _jwt_payload_unverified(token)
+        token_aud = unverified.get('aud')
+        logger.info(
+            'Google token aud (from JWT)=%s iss=%s configured_client_id(s)=%s',
+            token_aud,
+            unverified.get('iss'),
+            configured_ids,
+        )
+
         try:
-            logger.info('Attempting to verify Google ID token')
-            
-            # Verify Google token (JWT credential from @react-oauth/google)
-            idinfo = id_token.verify_oauth2_token(token, google_requests.Request(), audience)
+            idinfo = _google_verify_id_token(token, audience)
             
             # Extract user information safely
             email = idinfo.get('email')
@@ -313,7 +350,10 @@ class GoogleLoginView(APIView):
                     'is_active': True,
                 }
             )
-            
+            if created:
+                user.set_unusable_password()
+                user.save(update_fields=['password'])
+
             logger.info(f'User {"created" if created else "retrieved"}: {user.email}')
             
             # Generate JWT tokens
@@ -347,14 +387,17 @@ class GoogleLoginView(APIView):
             }, status=status.HTTP_200_OK)
             
         except ValueError as e:
-            logger.error(f'Google token validation error: {str(e)}')
+            logger.error('Google token validation error: %s', str(e))
             error_message = str(e)
             if 'audience' in error_message.lower():
                 return Response({
                     'success': False,
                     'message': 'Invalid Google token: Audience mismatch',
                     'error_code': 'AUDIENCE_MISMATCH',
-                    'details': 'The Google token was issued for a different application.'
+                    'details': (
+                        f'Token aud={token_aud!r} must match GOOGLE_CLIENT_ID on the server '
+                        f'({configured_ids!r}). Use the same Web client ID as NEXT_PUBLIC_GOOGLE_CLIENT_ID on Vercel.'
+                    ),
                 }, status=status.HTTP_400_BAD_REQUEST)
             elif 'expired' in error_message.lower():
                 return Response({
