@@ -15,6 +15,7 @@ from django.core.mail import send_mail
 from django.conf import settings as django_settings
 import base64
 import json
+import threading
 
 from accounts.google_token import verify_google_token, audience_matches_config
 
@@ -90,6 +91,21 @@ def _send_otp_email(email, otp):
     except Exception as e:
         print(f'Email send error: {e}')
         return False
+
+
+def _send_otp_email_background(email_addr, otp_code):
+    """Run SMTP in a daemon thread so /api/register/ returns immediately (avoids client timeouts)."""
+
+    def _run():
+        log = logging.getLogger(__name__)
+        try:
+            ok = _send_otp_email(email_addr, otp_code)
+            if not ok:
+                log.error('OTP email failed for %s — check EMAIL_* / SMTP', email_addr)
+        except Exception:
+            log.exception('OTP email error for %s', email_addr)
+
+    threading.Thread(target=_run, daemon=True).start()
 
 
 class LoginView(APIView):
@@ -206,9 +222,7 @@ class RegisterView(APIView):
             pass
 
         otp = EmailOTP.generate(user)
-        sent = _send_otp_email(user.email, otp)
-        if not sent:
-            logger.error('OTP email failed to send for %s — check EMAIL_* settings', user.email)
+        _send_otp_email_background(user.email, otp)
 
         ok_msg = 'User created successfully. Please verify your email with the OTP we sent.'
         return Response(
@@ -216,7 +230,7 @@ class RegisterView(APIView):
                 'success': True,
                 'message': ok_msg,
                 'email': user.email,
-                'otp_sent': sent,
+                'otp_sent': True,
                 'requires_verification': True,
             },
             status=status.HTTP_201_CREATED,

@@ -208,6 +208,12 @@ cloudinary.config(
 CORS_ALLOWED_ORIGINS = [
     "https://civic-frontend-three.vercel.app",
     "http://localhost:3000",
+    "http://localhost:3001",
+]
+
+# Any Vercel preview / production *.vercel.app origin
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://.*\.vercel\.app$",
 ]
 
 CORS_ALLOW_ALL_ORIGINS = DEBUG
@@ -219,6 +225,7 @@ CORS_ALLOW_CREDENTIALS = True
 CSRF_TRUSTED_ORIGINS = [
     "https://civic-frontend-three.vercel.app",
     "http://localhost:3000",
+    "http://localhost:3001",
 ]
 
 # ========================
@@ -280,10 +287,12 @@ GOOGLE_CLIENT_ID = _clean_google_client_id_env(
 # ========================
 # EMAIL
 # ========================
+
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'civictrack.civic@gmail.com'   # Your Gmail address
-EMAIL_HOST_PASSWORD = 'psgrbqukbgzjobdk'  # Gmail App Password (not your login password)
-DEFAULT_FROM_EMAIL = '<civictrack.civic@gmail.com>'  
+EMAIL_TIMEOUT = 15
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER or 'webmaster@localhost'
