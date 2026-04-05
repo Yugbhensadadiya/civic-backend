@@ -50,6 +50,7 @@ urlpatterns = [
     path('api/district/<str:district_name>/', DistrictDetailView.as_view(), name='district-detail'),
     path('api/register/', RegisterView.as_view(), name='register'),
     path('api/verify-email/', VerifyEmailOTP.as_view(), name='verify-email'),
+    path('api/verify-otp/', VerifyEmailOTP.as_view(), name='verify-otp'),
     path('api/resend-otp/', ResendOTP.as_view(), name='resend-otp'),
     path('api/test/', TestAPIView.as_view(), name='test-api'),
     path('api/login/', LoginView.as_view(),name='login'),

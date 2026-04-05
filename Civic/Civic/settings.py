@@ -193,19 +193,13 @@ CLOUDINARY_STORAGE = {
     'CLOUD_NAME': os.getenv('CLOUDINARY_CLOUD_NAME'),
     'API_KEY': os.getenv('CLOUDINARY_API_KEY'),
     'API_SECRET': os.getenv('CLOUDINARY_API_SECRET'),
-    'CLOUD_NAME': os.getenv('CLOUDINARY_CLOUD_NAME'),
-    'API_KEY': os.getenv('CLOUDINARY_API_KEY'),
-    'API_SECRET': os.getenv('CLOUDINARY_API_SECRET'),
 }
 
 cloudinary.config(
     cloud_name=CLOUDINARY_STORAGE['CLOUD_NAME'],
     api_key=CLOUDINARY_STORAGE['API_KEY'],
     api_secret=CLOUDINARY_STORAGE['API_SECRET'],
-    cloud_name=CLOUDINARY_STORAGE['CLOUD_NAME'],
-    api_key=CLOUDINARY_STORAGE['API_KEY'],
-    api_secret=CLOUDINARY_STORAGE['API_SECRET'],
-    secure=True
+    secure=True,
 )
 
 # ========================
@@ -236,8 +230,6 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_PERMISSION_CLASSES': [],
     'EXCEPTION_HANDLER': 'accounts.exceptions.custom_exception_handler',
-    'DEFAULT_PERMISSION_CLASSES': [],
-    'EXCEPTION_HANDLER': 'accounts.exceptions.custom_exception_handler',
 }
 
 # ========================
@@ -251,15 +243,7 @@ SIMPLE_JWT = {
     'UPDATE_LAST_LOGIN': True,
     'ALGORITHM': 'HS256',
     'SIGNING_KEY': SECRET_KEY,
-    'ROTATE_REFRESH_TOKENS': True,
-    'BLACKLIST_AFTER_ROTATION': True,
-    'UPDATE_LAST_LOGIN': True,
-    'ALGORITHM': 'HS256',
-    'SIGNING_KEY': SECRET_KEY,
     'AUTH_HEADER_TYPES': ('Bearer',),
-    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
-    'TOKEN_TYPE_CLAIM': 'token_type',
-    'JTI_CLAIM': 'jti',
     'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
     'TOKEN_TYPE_CLAIM': 'token_type',
     'JTI_CLAIM': 'jti',
@@ -272,7 +256,6 @@ AUTH_USER_MODEL = 'accounts.CustomUser'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # ========================
-# GOOGLE OAUTH
 # GOOGLE OAUTH
 # ========================
 

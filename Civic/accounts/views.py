@@ -10,6 +10,7 @@ import os
 import logging
 from complaints.models import Complaint
 from rest_framework.pagination import PageNumberPagination
+from django.db import IntegrityError
 from django.core.mail import send_mail
 from django.conf import settings as django_settings
 import base64
@@ -37,6 +38,38 @@ class TestAPIView(APIView):
             'message': 'API is working',
             'status': 'success'
         })
+
+
+def _redact_register_data(data):
+    """For safe logging (works with QueryDict / dict)."""
+    out = {}
+    try:
+        for key in data:
+            out[key] = data.get(key)
+    except Exception:
+        return {}
+    for k in list(out.keys()):
+        lk = str(k).lower()
+        if 'password' in lk or 'otp' in lk:
+            out[k] = '***'
+    return out
+
+
+def _serializer_errors_message(errors):
+    """Single human-readable line from DRF errors."""
+    if isinstance(errors, dict):
+        parts = []
+        for key, val in errors.items():
+            if isinstance(val, list):
+                parts.append(f'{key}: {val[0]}' if val else key)
+            elif isinstance(val, dict):
+                parts.append(_serializer_errors_message(val))
+            else:
+                parts.append(f'{key}: {val}')
+        return '; '.join(parts) if parts else 'Validation failed.'
+    if isinstance(errors, list):
+        return errors[0] if errors else 'Validation failed.'
+    return str(errors)
 
 
 def _send_otp_email(email, otp):
@@ -121,26 +154,44 @@ class RegisterView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        username = request.data.get('username')
-        email = request.data.get('email')
-        password = request.data.get('password')
-        role = request.data.get('role', 'Civic-User')
+        logger = logging.getLogger(__name__)
+        logger.info('Register request (redacted): %s', _redact_register_data(request.data))
 
-        if CustomUser.objects.filter(email=email).exists():
-            return Response({'success': False, 'message': 'Email already exists'}, status=status.HTTP_400_BAD_REQUEST)
+        serializer = UserRegister(data=request.data)
+        if not serializer.is_valid():
+            msg = _serializer_errors_message(serializer.errors)
+            logger.warning('Register validation failed: %s', serializer.errors)
+            return Response(
+                {
+                    'success': False,
+                    'message': msg,
+                    'errors': serializer.errors,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        if username and CustomUser.objects.filter(username=username).exists():
-            return Response({'success': False, 'message': 'Username already exists'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            user = serializer.save()
+        except IntegrityError as e:
+            logger.warning('Register integrity error: %s', e)
+            return Response(
+                {
+                    'success': False,
+                    'message': 'Email or username is already registered.',
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as e:
+            logger.exception('Register failed: %s', e)
+            return Response(
+                {
+                    'success': False,
+                    'message': 'Could not create account. Please try again.',
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        user = CustomUser.objects.create_user(
-            email=email,
-            password=password,
-            username=username or email.split('@')[0],
-            User_Role=role,
-            email_verified=False,
-        )
-
-        # Create Officer record if role is Officer
+        role = user.User_Role
         try:
             if role == 'Officer':
                 from departments.models import Officer as DeptOfficer
@@ -154,17 +205,22 @@ class RegisterView(APIView):
         except Exception:
             pass
 
-        # Generate and send OTP
         otp = EmailOTP.generate(user)
-        sent = _send_otp_email(email, otp)
+        sent = _send_otp_email(user.email, otp)
+        if not sent:
+            logger.error('OTP email failed to send for %s — check EMAIL_* settings', user.email)
 
-        return Response({
-            'success': True,
-            'message': 'Registration successful. Please check your email for the OTP to verify your account.',
-            'email': email,
-            'otp_sent': sent,
-            'requires_verification': True,
-        }, status=status.HTTP_201_CREATED)
+        ok_msg = 'User created successfully. Please verify your email with the OTP we sent.'
+        return Response(
+            {
+                'success': True,
+                'message': ok_msg,
+                'email': user.email,
+                'otp_sent': sent,
+                'requires_verification': True,
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
 class VerifyEmailOTP(APIView):
     authentication_classes = []
@@ -172,7 +228,7 @@ class VerifyEmailOTP(APIView):
 
     def post(self, request):
         email = request.data.get('email', '').strip().lower()
-        otp   = request.data.get('otp', '').strip()
+        otp = (request.data.get('otp') or '').strip().replace(' ', '')
 
         if not email or not otp:
             return Response({'success': False, 'message': 'Email and OTP are required'}, status=400)
