@@ -4,51 +4,44 @@ from pathlib import Path
 from datetime import timedelta
 from django.core.exceptions import ImproperlyConfigured
 import cloudinary
-import cloudinary.uploader
-import cloudinary.api
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # ========================
 # SECURITY
 # ========================
-SECRET_KEY = os.getenv("SECRET_KEY", "mLBbxxbOC-8WW4Sj9FKzK4Cgz-bCxk9U75HoVcXZofGsiKcSZK1Tb6vBrrc98ZFSPWlUnpGsn_pz6MLtK7cbkg")
+SECRET_KEY = os.getenv("SECRET_KEY", "change-this-secret-key")
 
 DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
-# Render / reverse proxy: so request.is_secure() and URL building are correct
-if not DEBUG:
-    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-    USE_X_FORWARDED_HOST = True
-
+# ========================
+# HOST SETTINGS
+# ========================
 ALLOWED_HOSTS = [
     h.strip()
     for h in os.getenv(
         'ALLOWED_HOSTS',
-        'localhost,127.0.0.1,.onrender.com,.vercel.app',
+        'localhost,127.0.0.1,.onrender.com,.vercel.app'
     ).split(',')
     if h.strip()
 ]
 
 # ========================
-# PRODUCTION SECURITY SETTINGS
+# PROXY FIX (IMPORTANT FOR RENDER)
 # ========================
-SECURE_HSTS_SECONDS = int(os.getenv('SECURE_HSTS_SECONDS', '31536000'))  # 1 year
-SECURE_HSTS_INCLUDE_SUBDOMAINS = os.getenv('SECURE_HSTS_INCLUDE_SUBDOMAINS', 'True') == 'True'
-SECURE_HSTS_PRELOAD = os.getenv('SECURE_HSTS_PRELOAD', 'True') == 'True'
-SECURE_SSL_REDIRECT = os.getenv('SECURE_SSL_REDIRECT', 'True') == 'True'
-SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
-SECURE_CONTENT_TYPE_NOSNIFF = True
-SECURE_BROWSER_XSS_FILTER = True
-SECURE_X_FRAME_OPTIONS = 'DENY'
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    USE_X_FORWARDED_HOST = True
 
-# Session Security
+# ========================
+# SECURITY SETTINGS
+# ========================
+SECURE_SSL_REDIRECT = not DEBUG
 SESSION_COOKIE_SECURE = not DEBUG
-SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SAMESITE = 'Strict'
+CSRF_COOKIE_SECURE = not DEBUG
 
 # ========================
-# APPS
+# INSTALLED APPS
 # ========================
 INSTALLED_APPS = [
     'corsheaders',
@@ -63,7 +56,6 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt.token_blacklist',
 
-    # Cloudinary
     'cloudinary',
     'cloudinary_storage',
 
@@ -97,43 +89,21 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'Civic.urls'
-
-# ========================
-# TEMPLATES
-# ========================
-TEMPLATES = [
-    {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
-        'APP_DIRS': True,
-        'OPTIONS': {
-            'context_processors': [
-                'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
-            ],
-        },
-    },
-]
-
 WSGI_APPLICATION = 'Civic.wsgi.application'
 
 # ========================
-# DATABASE
+# DATABASE (FIXED)
 # ========================
-# Production (e.g. Render): DATABASE_URL must be set — no silent SQLite fallback.
-# Local dev: omit DATABASE_URL to use SQLite.
-_database_url = os.environ.get('DATABASE_URL')
-if not DEBUG and not _database_url:
-    raise ImproperlyConfigured(
-        'DATABASE_URL is required when DEBUG=False (set it in Render to your PostgreSQL URL).'
-    )
+DATABASE_URL = os.environ.get("DATABASE_URL")
+
+if not DEBUG and not DATABASE_URL:
+    raise ImproperlyConfigured("DATABASE_URL is required in production")
 
 DATABASES = {
-    'default': dj_database_url.config(
-        default=_database_url or f'sqlite:///{BASE_DIR}/local_db.sqlite3',
+    "default": dj_database_url.parse(
+        DATABASE_URL,
         conn_max_age=600,
-        ssl_require=bool(_database_url),
+        ssl_require=True
     )
 }
 
@@ -148,22 +118,11 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 # ========================
-# INTERNATIONALIZATION
-# ========================
-LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'UTC'
-USE_I18N = True
-USE_TZ = True
-
-# ========================
 # STATIC FILES
 # ========================
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
-# ========================
-# STORAGES (Django 4.2+)
-# ========================
 STORAGES = {
     "default": {
         "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
@@ -176,71 +135,37 @@ STORAGES = {
 # ========================
 # CLOUDINARY
 # ========================
-
 CLOUDINARY_STORAGE = {
-    'CLOUD_NAME': os.environ.get('CLOUDINARY_CLOUD_NAME', ''),
-    'API_KEY': os.environ.get('CLOUDINARY_API_KEY', ''),
-    'API_SECRET': os.environ.get('CLOUDINARY_API_SECRET', ''),
+    'CLOUD_NAME': os.getenv('dohsxheen'),
+    'API_KEY': os.getenv('325445428156324'),
+    'API_SECRET': os.getenv('RkekPuOkm4VlouVS8vU_kZaJLYI'),
 }
 
-# Initialize cloudinary default behavior for CloudinaryField
 cloudinary.config(
-    cloud_name=CLOUDINARY_STORAGE['CLOUD_NAME'],
-    api_key=CLOUDINARY_STORAGE['API_KEY'],
-    api_secret=CLOUDINARY_STORAGE['API_SECRET'],
+    cloud_name=CLOUDINARY_STORAGE['dohsxheen'],
+    api_key=CLOUDINARY_STORAGE['325445428156324'],
+    api_secret=CLOUDINARY_STORAGE['RkekPuOkm4VlouVS8vU_kZaJLYI'],
     secure=True
 )
 
-DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
-
 # ========================
-# CORS
+# CORS (FIXED)
 # ========================
-# Primary production frontend + preview URLs + local dev.
-# Must match the browser origin exactly (scheme + host, no trailing slash).
 CORS_ALLOWED_ORIGINS = [
     "https://civic-frontend-three.vercel.app",
-    "https://civic-frontend-by7vumq3h-yugpatel559977-6965s-projects.vercel.app",
     "http://localhost:3000",
-    "http://localhost:3001",
 ]
 
-CORS_ALLOW_ALL_ORIGINS = DEBUG  # Only in development
+CORS_ALLOW_ALL_ORIGINS = DEBUG
 CORS_ALLOW_CREDENTIALS = True
 
-CORS_ALLOW_HEADERS = [
-    'accept',
-    'accept-encoding',
-    'authorization',
-    'content-type',
-    'dnt',
-    'origin',
-    'user-agent',
-    'x-csrftoken',
-    'x-requested-with',
-]
-
-CORS_ALLOW_METHODS = [
-    'DELETE',
-    'GET',
-    'OPTIONS',
-    'PATCH',
-    'POST',
-    'PUT',
-]
-
 # ========================
-# CSRF
+# CSRF (FIXED)
 # ========================
 CSRF_TRUSTED_ORIGINS = [
     "https://civic-frontend-three.vercel.app",
-    "https://civic-frontend-by7vumq3h-yugpatel559977-6965s-projects.vercel.app",
     "http://localhost:3000",
-    "http://localhost:3001",
 ]
-
-CSRF_COOKIE_SECURE = not DEBUG
-CSRF_COOKIE_HTTPONLY = False
 
 # ========================
 # REST FRAMEWORK
@@ -249,8 +174,6 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
-    'DEFAULT_PERMISSION_CLASSES': [],
-    'EXCEPTION_HANDLER': 'accounts.exceptions.custom_exception_handler',
 }
 
 # ========================
@@ -259,18 +182,7 @@ REST_FRAMEWORK = {
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
-    'ROTATE_REFRESH_TOKENS': True,
-    'BLACKLIST_AFTER_ROTATION': True,
-    'UPDATE_LAST_LOGIN': True,
-    'ALGORITHM': 'HS256',
-    'SIGNING_KEY': SECRET_KEY,
     'AUTH_HEADER_TYPES': ('Bearer',),
-    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
-    'TOKEN_TYPE_CLAIM': 'token_type',
-    'JTI_CLAIM': 'jti',
-    'SLIDING_TOKEN_REFRESH_EXP_CLAIM': 'refresh_exp',
-    'SLIDING_TOKEN_LIFETIME': timedelta(minutes=60),
-    'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=1),
 }
 
 # ========================
@@ -280,32 +192,20 @@ AUTH_USER_MODEL = 'accounts.CustomUser'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # ========================
+# GOOGLE OAUTH (FIXED 🔥)
+# ========================
+def clean(value):
+    return value.strip().replace('"', '').replace("'", "")
+
+GOOGLE_CLIENT_ID = clean(os.getenv("368010718950-hcafld60i8i3n95tf8o59h3cvfn525sq.apps.googleusercontent.com", ""))
+
+# ========================
 # EMAIL
 # ========================
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
-
-DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
-
-# ========================
-# GOOGLE SIGN-IN (ID token verification)
-# ========================
-# Must match frontend NEXT_PUBLIC_GOOGLE_CLIENT_ID exactly (Web client ID from Google Cloud).
-# Multiple IDs: comma-separated. Strips wrapping quotes (common copy/paste mistake in Render/Vercel).
-
-
-def _strip_optional_quotes(value):
-    if not value:
-        return ''
-    s = value.strip()
-    if len(s) >= 2 and s[0] == s[-1] and s[0] in ('"', "'"):
-        s = s[1:-1].strip()
-    return s
-
-
-GOOGLE_CLIENT_ID = _strip_optional_quotes(os.getenv('GOOGLE_CLIENT_ID', ''))
+EMAIL_HOST_USER = 'civictrack.civic@gmail.com'   # Your Gmail address
+EMAIL_HOST_PASSWORD = 'psgrbqukbgzjobdk'  # Gmail App Password (not your login password)
+DEFAULT_FROM_EMAIL = '<civictrack.civic@gmail.com>'  
