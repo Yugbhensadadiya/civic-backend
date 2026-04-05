@@ -1,6 +1,20 @@
 from rest_framework import serializers
 from .models import Department, Officer
 
+
+class DepartmentDropdownSerializer(serializers.ModelSerializer):
+    """Minimal `{id, name}` for public dropdowns; name matches complaint routing (display label)."""
+
+    name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Department
+        fields = ['id', 'name']
+
+    def get_name(self, obj):
+        return obj.get_category_display()
+
+
 class deptSerializer(serializers.ModelSerializer):
     head_officer_name = serializers.SerializerMethodField()
     officer_count = serializers.SerializerMethodField()

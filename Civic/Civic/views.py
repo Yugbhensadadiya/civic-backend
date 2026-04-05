@@ -393,11 +393,6 @@ class complaintinfo(APIView):
         return Response({"total_comp": total_comp})
 
 
-class DepartmentList(ListAPIView):
-    queryset = Department.objects.all()
-    serializer_class = deptSerializer
-
-
 class complaintofficer(CreateAPIView):
     queryset = ComplaintAssignment.objects.all()
     serializer_class = ComplaintAssignmentSerializer

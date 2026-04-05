@@ -3,7 +3,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.generics import ListAPIView
 from rest_framework.views import APIView
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.db.models import Q, Count
 from django.utils import timezone
 from datetime import timedelta
@@ -13,7 +13,7 @@ from complaints.models import Complaint
 from complaints.serializers import ComplaintSerializer
 from accounts.models import CustomUser
 from departments.models import Department, Officer
-from departments.serializers import deptSerializer, OfficerSerializer
+from departments.serializers import deptSerializer, OfficerSerializer, DepartmentDropdownSerializer
 from rest_framework import status
 
 
@@ -47,6 +47,18 @@ def _dept_complaint_qs(dept):
 
 
 # ─── Public department list (no auth — used by raise-complaint form) ─────────
+
+
+class DepartmentListView(APIView):
+    """GET /api/departments/ — `[{id, name}, ...]`; name is the display label used by complaint create."""
+
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def get(self, request):
+        departments = Department.objects.all().order_by('name')
+        return Response(DepartmentDropdownSerializer(departments, many=True).data)
+
 
 @api_view(['GET'])
 def department_list_public(request):

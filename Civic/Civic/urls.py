@@ -22,10 +22,10 @@ from django.views.generic import RedirectView
 from complaints.views import CreateComplaintView
 from complaints.district_views import DistrictDetailView
 from Civic import views
-from Civic.views import getcomplaint,getcomplaintlimit,getpubliccomplaints,compinfo,complaintofficer,officerprofile,officerkpi,adminallcomplaintcart,adimncomplaints,ComplaintDelete,assigncomp,crateofficer,CategoriesList,CategoryDelete,adminstats,TrackComplaint,ComplaintStatus,OfficerDelete,OfficerUpdate,OfficerAnalytics,Logout,UserMonthlyRegistrations,admindashboardcard,UserRoleDistribution,ComplaintStatusTrends,CivicUserActivityView,DepartmentList,UserEmailList
+from Civic.views import getcomplaint,getcomplaintlimit,getpubliccomplaints,compinfo,complaintofficer,officerprofile,officerkpi,adminallcomplaintcart,adimncomplaints,ComplaintDelete,assigncomp,crateofficer,CategoriesList,CategoryDelete,adminstats,TrackComplaint,ComplaintStatus,OfficerDelete,OfficerUpdate,OfficerAnalytics,Logout,UserMonthlyRegistrations,admindashboardcard,UserRoleDistribution,ComplaintStatusTrends,CivicUserActivityView,UserEmailList
 from accounts.views import RegisterView, LoginView, LogoutView, GoogleLoginView, UserDetail, UpdateUserDetails, UserListCreateView, UserRetrieveUpdateDeleteView, ChangePasswordView, UserActivityView, ToggleTwoFactorView, UserComplaintsView, TestAPIView, AdminProfileView, AdminUpdateProfileView, AdminSystemSettingsView, VerifyEmailOTP, ResendOTP
 from contact_us.views import ContactUSview
-from departments.views import OfficerDetail, department_profile, department_officers, department_complaints, department_performance, update_department_profile, department_dashboard, departments_overview, department_statistics, department_list_public
+from departments.views import OfficerDetail, department_profile, department_officers, department_complaints, department_performance, update_department_profile, department_dashboard, departments_overview, department_statistics, department_list_public, DepartmentListView
 from departments.admin_urls import urlpatterns as department_admin_urls
 from rest_framework_simplejwt.views import TokenRefreshView
 
@@ -108,7 +108,7 @@ urlpatterns = [
     path('api/complaintindetails/<int:pk>/',views.ComplaintInDetail.as_view(),name='complaintindetails-detail'),
     path('api/complaints/status/',views.ComplaintStatusStats.as_view(),name='complaint-status-stats'),
     path('api/complaints/monthly/',views.ComplaintMonthlyStats.as_view(),name='complaint-monthly-stats'),
-    path('api/departments/', DepartmentList.as_view(), name='departments-list'),
+    path('api/departments/', DepartmentListView.as_view(), name='departments-list'),
     path('api/admin/departments/', include(department_admin_urls)),
     path('api/department/dashboard/', department_dashboard, name='department-dashboard'),
     path('api/departments/overview/', departments_overview, name='departments-overview'),
