@@ -193,19 +193,13 @@ CLOUDINARY_STORAGE = {
     'CLOUD_NAME': os.getenv('CLOUDINARY_CLOUD_NAME'),
     'API_KEY': os.getenv('CLOUDINARY_API_KEY'),
     'API_SECRET': os.getenv('CLOUDINARY_API_SECRET'),
-    'CLOUD_NAME': os.getenv('CLOUDINARY_CLOUD_NAME'),
-    'API_KEY': os.getenv('CLOUDINARY_API_KEY'),
-    'API_SECRET': os.getenv('CLOUDINARY_API_SECRET'),
 }
 
 cloudinary.config(
     cloud_name=CLOUDINARY_STORAGE['CLOUD_NAME'],
     api_key=CLOUDINARY_STORAGE['API_KEY'],
     api_secret=CLOUDINARY_STORAGE['API_SECRET'],
-    cloud_name=CLOUDINARY_STORAGE['CLOUD_NAME'],
-    api_key=CLOUDINARY_STORAGE['API_KEY'],
-    api_secret=CLOUDINARY_STORAGE['API_SECRET'],
-    secure=True
+    secure=True,
 )
 
 # ========================
@@ -301,6 +295,6 @@ EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
-DEFAULT_FROM_EMAIL = EMAIL_HOST_USER or 'webmaster@localhost'
+EMAIL_HOST_USER = 'civictrack.civic@gmail.com'   # Your Gmail address
+EMAIL_HOST_PASSWORD = 'psgrbqukbgzjobdk'  # Gmail App Password (not your login password)
+DEFAULT_FROM_EMAIL = '<civictrack.civic@gmail.com>'  
