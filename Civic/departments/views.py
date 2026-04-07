@@ -171,6 +171,14 @@ class OfficerDetail(ListAPIView):
 
     def list(self, request, *args, **kwargs):
         officers = Officer.objects.select_related('department').all()
+
+        # Security: department users can only view officers from their own department.
+        if getattr(request.user, 'User_Role', None) == 'Department-User':
+            dept = _get_user_department(request.user)
+            if not dept:
+                return Response([])
+            officers = officers.filter(department=dept)
+
         result = []
         for o in officers:
             dept_name = o.department.name if o.department else ''
