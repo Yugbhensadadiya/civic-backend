@@ -96,7 +96,7 @@ def department_statistics(request):
         year = int(year_param) if year_param and year_param.isdigit() else None
 
         departments_data = []
-        for dept in Department.objects.all():
+        for dept in Department.objects.all().order_by('name'):
             base_qs = _dept_complaint_qs(dept)
             if year:
                 base_qs = base_qs.filter(current_time__year=year)
@@ -105,7 +105,11 @@ def department_statistics(request):
             pending_count    = base_qs.filter(status='Pending').count()
             inprogress_count = base_qs.filter(status='In Process').count()
             resolved_count   = base_qs.filter(status='Completed').count()
-            officer_count    = base_qs.exclude(officer_id=None).values('officer_id').distinct().count()
+            # Officer graph should include all officers in the department, even with 0 complaints.
+            # Combine both links: Department.officers (CustomUser M2M) and Officer FK rows.
+            m2m_user_count = dept.officers.count()
+            officer_fk_count = Officer.objects.filter(department=dept).count()
+            officer_count = max(m2m_user_count, officer_fk_count)
             resolution_rate  = round(resolved_count / complaint_count * 100, 1) if complaint_count else 0
 
             departments_data.append({
