@@ -55,6 +55,32 @@ import random
 from django.utils import timezone
 from datetime import timedelta
 
+
+class PendingUser(models.Model):
+    """Temporary signup storage until OTP verification succeeds."""
+
+    username = models.CharField(max_length=150)
+    email = models.EmailField(unique=True)
+    password_hash = models.CharField(max_length=200)
+    user_role = models.CharField(choices=CustomUser.CHOICE_FIELDS, max_length=200, default='Civic-User')
+    otp = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['email']),
+            models.Index(fields=['created_at']),
+        ]
+
+    def is_valid(self):
+        """OTP expires after 10 minutes."""
+        return timezone.now() < self.updated_at + timedelta(minutes=10)
+
+    def __str__(self):
+        return f"Pending: {self.email}"
+
+
 class EmailOTP(models.Model):
     user  = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='email_otp')
     otp   = models.CharField(max_length=6)

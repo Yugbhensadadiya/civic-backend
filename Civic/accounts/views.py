@@ -2,17 +2,21 @@ from rest_framework.views import APIView
 from rest_framework.generics import ListAPIView, RetrieveUpdateDestroyAPIView
 from rest_framework.response import Response
 from rest_framework import status
-from .models import CustomUser
+from .models import CustomUser, PendingUser
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from accounts.serializers import UserRegister, UserDetailSerializer, UserUpdateSerializer, UserAdminSerializer
 import os
 import random
 import logging
+from datetime import timedelta
 from complaints.models import Complaint
 from rest_framework.pagination import PageNumberPagination
 from django.db import IntegrityError
+from django.db import transaction
 from django.conf import settings as django_settings
+from django.contrib.auth.hashers import make_password
+from django.utils import timezone
 import base64
 import json
 
@@ -153,10 +157,37 @@ class RegisterView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        validated = dict(serializer.validated_data)
+        email = (validated.get('email') or '').strip().lower()
+        username = (validated.get('username') or '').strip()
+        role = validated.get('User_Role') or 'Civic-User'
+        raw_password = validated.get('password') or ''
+
+        # Cleanup expired pending rows opportunistically.
+        PendingUser.objects.filter(updated_at__lt=timezone.now() - timedelta(minutes=10)).delete()
+
+        if CustomUser.objects.filter(email=email).exists() or CustomUser.objects.filter(username=username).exists():
+            return Response(
+                {
+                    'success': False,
+                    'message': 'Email or username is already registered.',
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        otp = str(random.randint(100000, 999999))
         try:
-            user = serializer.save()
+            PendingUser.objects.update_or_create(
+                email=email,
+                defaults={
+                    'username': username,
+                    'password_hash': make_password(raw_password),
+                    'user_role': role,
+                    'otp': otp,
+                },
+            )
         except IntegrityError as e:
-            logger.warning('Register integrity error: %s', e)
+            logger.warning('Pending signup integrity error: %s', e)
             return Response(
                 {
                     'success': False,
@@ -165,43 +196,24 @@ class RegisterView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         except Exception as e:
-            logger.exception('Register failed: %s', e)
+            logger.exception('Pending signup failed: %s', e)
             return Response(
                 {
                     'success': False,
-                    'message': 'Could not create account. Please try again.',
+                    'message': 'Could not start signup. Please try again.',
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        role = user.User_Role
-        try:
-            if role == 'Officer':
-                from departments.models import Officer as DeptOfficer
-                officer_id = f"OFF{user.id}"
-                DeptOfficer.objects.create(
-                    officer_id=officer_id,
-                    name=user.get_full_name() or user.username,
-                    email=user.email,
-                    phone=getattr(user, 'mobile_number', '') or ''
-                )
-        except Exception:
-            pass
-
-        otp = str(random.randint(100000, 999999))
-        user.otp = otp
-        user.is_verified = False
-        user.email_verified = False
-        user.save(update_fields=['otp', 'is_verified', 'email_verified'])
         print('OTP:', otp)
-        print('Sending to:', user.email)
-        send_otp_email(user.email, otp)
+        print('Sending to:', email)
+        send_otp_email(email, otp)
 
         return Response(
             {
                 'success': True,
-                'message': 'User created. OTP sent to email',
-                'email': user.email,
+                'message': 'Signup started. OTP sent to email',
+                'email': email,
                 'otp_sent': True,
                 'requires_verification': True,
             },
@@ -219,12 +231,71 @@ class VerifyEmailOTP(APIView):
         if not email or not otp:
             return Response({'success': False, 'message': 'Email and OTP are required'}, status=400)
 
-        try:
-            user = CustomUser.objects.get(email=email)
-        except CustomUser.DoesNotExist:
-            return Response({'success': False, 'message': 'User not found'}, status=404)
+        # Cleanup expired pending rows first.
+        PendingUser.objects.filter(updated_at__lt=timezone.now() - timedelta(minutes=10)).delete()
 
-        if user.email_verified:
+        # Already-created user path (legacy compatibility).
+        existing_user = CustomUser.objects.filter(email=email).first()
+        if existing_user and existing_user.email_verified:
+            refresh = RefreshToken.for_user(existing_user)
+            return Response({
+                'success': True,
+                'message': 'Email verified successfully',
+                'access_token': str(refresh.access_token),
+                'refresh_token': str(refresh),
+                'user': {'email': existing_user.email, 'username': existing_user.username, 'name': existing_user.get_full_name() or existing_user.email, 'role': existing_user.User_Role}
+            })
+
+        # New pending signup path (user is created only after OTP success).
+        pending = PendingUser.objects.filter(email=email).first()
+        if pending:
+            if not pending.is_valid():
+                pending.delete()
+                return Response(
+                    {'success': False, 'error': 'Invalid OTP', 'message': 'OTP expired. Please signup again.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if (pending.otp or '').strip() != otp:
+                return Response(
+                    {'success': False, 'error': 'Invalid OTP', 'message': 'Invalid OTP'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            if CustomUser.objects.filter(email=email).exists():
+                pending.delete()
+                return Response({'success': False, 'message': 'Email is already registered'}, status=400)
+
+            if CustomUser.objects.filter(username=pending.username).exists():
+                pending.username = f"{pending.username}_{random.randint(1000, 9999)}"
+                pending.save(update_fields=['username'])
+
+            with transaction.atomic():
+                user = CustomUser.objects.create(
+                    username=pending.username,
+                    email=pending.email,
+                    password=pending.password_hash,  # already hashed at signup
+                    User_Role=pending.user_role,
+                    is_verified=True,
+                    email_verified=True,
+                    otp=None,
+                )
+                pending.delete()
+
+                if user.User_Role == 'Officer':
+                    try:
+                        from departments.models import Officer as DeptOfficer
+                        officer_id = f"OFF{user.id}"
+                        DeptOfficer.objects.get_or_create(
+                            officer_id=officer_id,
+                            defaults={
+                                'name': user.get_full_name() or user.username,
+                                'email': user.email,
+                                'phone': getattr(user, 'mobile_number', '') or '',
+                            },
+                        )
+                    except Exception:
+                        pass
+
             refresh = RefreshToken.for_user(user)
             return Response({
                 'success': True,
@@ -234,35 +305,39 @@ class VerifyEmailOTP(APIView):
                 'user': {'email': user.email, 'username': user.username, 'name': user.get_full_name() or user.email, 'role': user.User_Role}
             })
 
-        stored = (user.otp or '').strip()
-        if not stored:
-            return Response(
-                {
-                    'success': False,
-                    'error': 'Invalid OTP',
-                    'message': 'No OTP on file. Use resend to get a new code.',
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        if stored != otp:
-            return Response(
-                {'success': False, 'error': 'Invalid OTP', 'message': 'Invalid OTP'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        # Legacy unverified user path (existing DB users from earlier flow).
+        if existing_user:
+            stored = (existing_user.otp or '').strip()
+            if not stored:
+                return Response(
+                    {
+                        'success': False,
+                        'error': 'Invalid OTP',
+                        'message': 'No OTP on file. Use resend to get a new code.',
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if stored != otp:
+                return Response(
+                    {'success': False, 'error': 'Invalid OTP', 'message': 'Invalid OTP'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
-        user.is_verified = True
-        user.email_verified = True
-        user.otp = None
-        user.save(update_fields=['is_verified', 'email_verified', 'otp'])
+            existing_user.is_verified = True
+            existing_user.email_verified = True
+            existing_user.otp = None
+            existing_user.save(update_fields=['is_verified', 'email_verified', 'otp'])
 
-        refresh = RefreshToken.for_user(user)
-        return Response({
-            'success': True,
-            'message': 'Email verified successfully',
-            'access_token': str(refresh.access_token),
-            'refresh_token': str(refresh),
-            'user': {'email': user.email, 'username': user.username, 'name': user.get_full_name() or user.email, 'role': user.User_Role}
-        })
+            refresh = RefreshToken.for_user(existing_user)
+            return Response({
+                'success': True,
+                'message': 'Email verified successfully',
+                'access_token': str(refresh.access_token),
+                'refresh_token': str(refresh),
+                'user': {'email': existing_user.email, 'username': existing_user.username, 'name': existing_user.get_full_name() or existing_user.email, 'role': existing_user.User_Role}
+            })
+
+        return Response({'success': False, 'message': 'User not found'}, status=404)
 
 
 class ResendOTP(APIView):
@@ -273,9 +348,23 @@ class ResendOTP(APIView):
         email = request.data.get('email', '').strip().lower()
         if not email:
             return Response({'success': False, 'message': 'Email is required'}, status=400)
-        try:
-            user = CustomUser.objects.get(email=email)
-        except CustomUser.DoesNotExist:
+
+        PendingUser.objects.filter(updated_at__lt=timezone.now() - timedelta(minutes=10)).delete()
+
+        pending = PendingUser.objects.filter(email=email).first()
+        if pending:
+            new_otp = str(random.randint(100000, 999999))
+            pending.otp = new_otp
+            pending.save(update_fields=['otp', 'updated_at'])
+            send_otp_email(email, new_otp)
+            return Response({
+                'success': True,
+                'message': 'A new OTP has been sent to your email.',
+                'otp_sent': True,
+            })
+
+        user = CustomUser.objects.filter(email=email).first()
+        if not user:
             return Response({'success': False, 'message': 'No account found with this email'}, status=404)
 
         if user.email_verified:
