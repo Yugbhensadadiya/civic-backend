@@ -44,9 +44,15 @@ def _get_officer_for_user(user):
     if not user:
         return None
     try:
-        officer = Officer.objects.filter(email=user.email).first()
+        # Primary match: officer email should match logged-in CustomUser email.
+        officer = Officer.objects.filter(email__iexact=user.email).first()
         if officer:
             return officer
+        # Common mapping in this project: Officer.officer_id like OFF<CustomUser.id>.
+        officer = Officer.objects.filter(officer_id=f"OFF{user.id}").first()
+        if officer:
+            return officer
+        # Legacy/alternate mapping by username.
         officer = Officer.objects.filter(officer_id=user.username).first()
         if officer:
             return officer
@@ -304,11 +310,15 @@ def officer_profile(request):
 def officer_complaints(request):
     try:
         officer = _get_officer_for_user(request.user)
+        print(f"[officer_complaints] user_id={request.user.id} email={request.user.email} username={request.user.username}")
+        print(f"[officer_complaints] resolved_officer_id={getattr(officer, 'officer_id', None)}")
         if not officer:
+            print("[officer_complaints] no Officer mapping found for logged-in user")
             return Response({'complaints': [], 'categories': [], 'total': 0,
                              'filters': {'status': 'all', 'category': 'all', 'search': ''}})
 
         qs = _officer_department_complaints(officer).order_by('-current_time')
+        print(f"[officer_complaints] assigned_complaints_count={qs.count()}")
 
         status_filter   = request.GET.get('status', 'all')
         category_filter = request.GET.get('category', 'all')
