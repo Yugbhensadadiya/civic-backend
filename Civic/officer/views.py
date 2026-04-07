@@ -16,6 +16,9 @@ VALID_STATUSES = {'Pending', 'In Process', 'Completed'}
 
 # Map legacy / alternate values to canonical
 _STATUS_ALIAS = {
+    'pending':     'Pending',
+    'completed':   'Completed',
+    'in process':  'In Process',
     'in-progress': 'In Process',
     'in_progress': 'In Process',
     'resolved':    'Completed',
@@ -68,16 +71,19 @@ def _officer_department_complaints(officer):
 
     qs = Complaint.objects.filter(officer_id=officer)
     dept = _get_officer_department(officer)
+    # Keep existing assignment flow working: if department link is missing/misaligned,
+    # still show complaints assigned to this officer.
     if not dept:
-        return Complaint.objects.none()
+        return qs
 
     dept_code = dept.category
     dept_label = dept.get_category_display()
-    return qs.filter(
+    dept_scoped = qs.filter(
         Q(Category__department=dept_code) |
         Q(Category__code=dept_code) |
         Q(Category__name=dept_label)
     )
+    return dept_scoped if dept_scoped.exists() else qs
 
 
 @api_view(['GET'])
