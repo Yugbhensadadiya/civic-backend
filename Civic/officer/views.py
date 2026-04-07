@@ -52,6 +52,34 @@ def _get_officer_for_user(user):
     return None
 
 
+def _get_officer_department(officer):
+    if not officer:
+        return None
+    return getattr(officer, 'department', None)
+
+
+def _officer_department_complaints(officer):
+    """
+    Officer data visibility = complaints assigned to officer AND in officer department.
+    Uses Category mappings because Complaint has no direct department FK.
+    """
+    if not officer:
+        return Complaint.objects.none()
+
+    qs = Complaint.objects.filter(officer_id=officer)
+    dept = _get_officer_department(officer)
+    if not dept:
+        return Complaint.objects.none()
+
+    dept_code = dept.category
+    dept_label = dept.get_category_display()
+    return qs.filter(
+        Q(Category__department=dept_code) |
+        Q(Category__code=dept_code) |
+        Q(Category__name=dept_label)
+    )
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def officer_dashboard_stats(request):
@@ -64,7 +92,7 @@ def officer_dashboard_stats(request):
                              'averageResolutionTime': 0, 'performanceScore': 0,
                              'todayComplaints': 0, 'weeklyComplaints': 0})
 
-        qs = Complaint.objects.filter(officer_id=officer)
+        qs = _officer_department_complaints(officer)
         total       = qs.count()
         resolved    = qs.filter(status='Completed').count()
         pending     = qs.filter(status='Pending').count()
@@ -112,7 +140,7 @@ def officer_recent_complaints(request):
             return Response([])
 
         seven_days_ago = timezone.now() - timedelta(days=7)
-        qs = Complaint.objects.filter(officer_id=officer).order_by('-current_time')[:10]
+        qs = _officer_department_complaints(officer).order_by('-current_time')[:10]
         data = []
         for c in qs:
             is_overdue = c.current_time < seven_days_ago and c.status in ['Pending', 'In Process']
@@ -144,7 +172,7 @@ def officer_monthly_trends(request):
 
         MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
         current_year = timezone.now().year
-        qs = Complaint.objects.filter(officer_id=officer, current_time__year=current_year)
+        qs = _officer_department_complaints(officer).filter(current_time__year=current_year)
         counts = qs.values('current_time__month').annotate(total=Count('id'))
         month_map = {row['current_time__month']: row['total'] for row in counts}
         data = [{'month': MONTH_NAMES[m - 1], 'complaints': month_map.get(m, 0)} for m in range(1, 13)]
@@ -221,13 +249,9 @@ def officer_profile(request):
                 'phone': getattr(user, 'mobile_number', None),
                 'address': getattr(user, 'address', None),
                 'department': (
-                    user.departments.first().get_category_display()
-                    if hasattr(user, 'departments') and user.departments.exists()
-                    else (
-                        user.headed_department.first().get_category_display()
-                        if hasattr(user, 'headed_department') and user.headed_department.exists()
-                        else None
-                    )
+                    officer.department.get_category_display()
+                    if officer and officer.department
+                    else None
                 ),
                 'designation': 'Officer',
                 'joinDate': user.date_joined.strftime('%Y-%m-%d') if user.date_joined else None,
@@ -278,7 +302,7 @@ def officer_complaints(request):
             return Response({'complaints': [], 'categories': [], 'total': 0,
                              'filters': {'status': 'all', 'category': 'all', 'search': ''}})
 
-        qs = Complaint.objects.filter(officer_id=officer).order_by('-current_time')
+        qs = _officer_department_complaints(officer).order_by('-current_time')
 
         status_filter   = request.GET.get('status', 'all')
         category_filter = request.GET.get('category', 'all')
@@ -299,7 +323,7 @@ def officer_complaints(request):
             )
 
         categories = list(
-            Complaint.objects.filter(officer_id=officer)
+            _officer_department_complaints(officer)
             .values_list('Category__name', flat=True)
             .distinct()
         )
@@ -359,7 +383,7 @@ def update_complaint_status(request, complaint_id):
         if not officer:
             return Response({'error': 'Officer not found'}, status=404)
 
-        complaint = Complaint.objects.filter(id=complaint_id, officer_id=officer).first()
+        complaint = _officer_department_complaints(officer).filter(id=complaint_id).first()
         if not complaint:
             return Response({'error': 'Complaint not found'}, status=404)
 
@@ -479,7 +503,7 @@ def officer_performance(request):
                 'officerName': 'Test Officer', 'officerId': 'TEST001'
             })
 
-        complaints = Complaint.objects.filter(officer_id=officer)
+        complaints = _officer_department_complaints(officer)
         total_complaints = complaints.count()
         resolved_complaints = complaints.filter(status='Completed').count()
         pending_complaints = complaints.filter(status='Pending').count()

@@ -2,6 +2,7 @@ from django.shortcuts import render
 from django.http import JsonResponse
 import traceback
 import math
+import re
 from rest_framework.views import APIView
 from rest_framework.generics import ListAPIView, CreateAPIView
 from rest_framework.response import Response
@@ -58,6 +59,26 @@ from complaints.models import ComplaintAssignment
 import calendar
 from datetime import datetime, timedelta
 from django.utils import timezone
+
+
+def _get_user_department(user):
+    if hasattr(user, 'headed_department') and user.headed_department.exists():
+        return user.headed_department.first()
+    if hasattr(user, 'departments') and user.departments.exists():
+        return user.departments.first()
+    return None
+
+
+def _complaint_belongs_to_department(complaint, dept):
+    if not complaint or not complaint.Category or not dept:
+        return False
+    dept_code = dept.category
+    dept_label = dept.get_category_display()
+    return (
+        complaint.Category.department == dept_code
+        or complaint.Category.code == dept_code
+        or complaint.Category.name == dept_label
+    )
 
 
 class getcomplaint(ListAPIView):
@@ -405,6 +426,26 @@ class complaintofficer(CreateAPIView):
             if m:
                 data['complaint'] = int(m.group(1))
 
+        # Department user security: cannot assign outside own department.
+        if getattr(request.user, 'User_Role', None) == 'Department-User':
+            dept = _get_user_department(request.user)
+            if not dept:
+                return Response({'error': 'No department found for this user'}, status=status.HTTP_403_FORBIDDEN)
+
+            complaint_id = data.get('complaint')
+            officer_id = data.get('officer')
+            complaint = Complaint.objects.filter(id=complaint_id).select_related('Category').first()
+            officer = Officer.objects.filter(pk=officer_id).first() if officer_id else None
+
+            if not complaint:
+                return Response({'error': 'Complaint not found'}, status=status.HTTP_404_NOT_FOUND)
+            if not _complaint_belongs_to_department(complaint, dept):
+                return Response({'error': 'Cannot assign complaints outside your department'}, status=status.HTTP_403_FORBIDDEN)
+            if not officer:
+                return Response({'error': 'Officer not found'}, status=status.HTTP_404_NOT_FOUND)
+            if officer.department_id != dept.id:
+                return Response({'error': 'Cannot assign outside department'}, status=status.HTTP_403_FORBIDDEN)
+
         serializer = self.get_serializer(data=data)
         try:
             serializer.is_valid(raise_exception=True)
@@ -599,6 +640,16 @@ class assigncomp(APIView):
             complaint = Complaint.objects.get(pk=pk)
             officer_id = request.data.get('officer_id')
             officer = Officer.objects.get(officer_id=officer_id)
+
+            if getattr(request.user, 'User_Role', None) == 'Department-User':
+                dept = _get_user_department(request.user)
+                if not dept:
+                    return Response({'error': 'No department found for this user'}, status=status.HTTP_403_FORBIDDEN)
+                if not _complaint_belongs_to_department(complaint, dept):
+                    return Response({'error': 'Cannot assign complaints outside your department'}, status=status.HTTP_403_FORBIDDEN)
+                if officer.department_id != dept.id:
+                    return Response({'error': 'Cannot assign outside department'}, status=status.HTTP_403_FORBIDDEN)
+
             complaint.officer_id = officer
             complaint.save()
             return Response({'success': True}, status=status.HTTP_200_OK)

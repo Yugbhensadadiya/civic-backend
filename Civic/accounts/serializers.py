@@ -99,10 +99,12 @@ class UserRegister(serializers.ModelSerializer):
 
 class UserDetailSerializer(serializers.ModelSerializer):
     total_complaints = serializers.SerializerMethodField()
+    department = serializers.SerializerMethodField()
     
     class Meta:
         model = CustomUser
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'User_Role', 
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'User_Role',
+                  'department',
                   'mobile_number', 'address', 'district', 'taluka', 'ward_number', 
                   'date_joined', 'total_complaints']
         read_only_fields = ['id', 'email', 'date_joined']
@@ -110,6 +112,18 @@ class UserDetailSerializer(serializers.ModelSerializer):
     def get_total_complaints(self, obj):
         from complaints.models import Complaint
         return Complaint.objects.filter(user=obj).count()
+
+    def get_department(self, obj):
+        # Officer model has explicit department FK; fallback to user<->department relations.
+        from departments.models import Officer
+        officer = Officer.objects.filter(email=obj.email).select_related('department').first()
+        if officer and officer.department:
+            return officer.department.get_category_display()
+        if hasattr(obj, 'departments') and obj.departments.exists():
+            return obj.departments.first().get_category_display()
+        if hasattr(obj, 'headed_department') and obj.headed_department.exists():
+            return obj.headed_department.first().get_category_display()
+        return None
 
 class UserUpdateSerializer(serializers.ModelSerializer):
     class Meta:
