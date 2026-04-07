@@ -337,6 +337,10 @@ def officer_complaints(request):
                 Q(title__icontains=search_query) |
                 Q(Description__icontains=search_query)
             )
+        print(
+            f"[officer_complaints] post_filter_count={qs.count()} "
+            f"filters(status={status_filter}, category={category_filter}, priority={priority_filter}, search={search_query!r})"
+        )
 
         categories = list(
             _officer_department_complaints(officer)
@@ -363,6 +367,7 @@ def officer_complaints(request):
         data = []
         for c in qs:
             is_overdue = c.current_time < seven_days_ago and c.status in ['Pending', 'In Process']
+            image_url = c.image_video if c.image_video else None
             data.append({
                 'id': c.id,
                 'title': c.title or 'Untitled',
@@ -379,7 +384,7 @@ def officer_complaints(request):
                 'citizenEmail': c.user.email if c.user else '',
                 'citizenPhone': getattr(c.user, 'mobile_number', '') or '',
                 'isOverdue': is_overdue,
-                'image': request.build_absolute_uri(c.image_video.url) if c.image_video else None,
+                'image': image_url,
                 'remarks': c.remarks or '',
                 'updatedAt': c.updated_at.strftime('%d %b %Y, %H:%M') if c.updated_at else '',
             })
