@@ -329,6 +329,11 @@ def officer_complaints(request):
         )
 
         total_count = qs.count()
+        status_counts = {
+            'pending': _officer_department_complaints(officer).filter(status='Pending').count(),
+            'in_progress': _officer_department_complaints(officer).filter(status='In Process').count(),
+            'completed': _officer_department_complaints(officer).filter(status='Completed').count(),
+        }
 
         try:
             page      = int(request.GET.get('page', 1))
@@ -367,6 +372,7 @@ def officer_complaints(request):
             'complaints': data,
             'categories': [c for c in categories if c],
             'total': total_count,
+            'statusCounts': status_counts,
             'filters': {'status': status_filter, 'category': category_filter,
                         'priority': priority_filter, 'search': search_query},
         })
@@ -375,7 +381,7 @@ def officer_complaints(request):
         return Response({'error': str(e)}, status=500)
 
 
-@api_view(['POST'])
+@api_view(['POST', 'PATCH'])
 @permission_classes([IsAuthenticated])
 def update_complaint_status(request, complaint_id):
     try:
