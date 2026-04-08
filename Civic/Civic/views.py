@@ -165,17 +165,34 @@ class compinfo(APIView):
     
     def get(self,request):
         total_comp = Complaint.objects.filter(user=self.request.user).count()
-        resolved_comp = Complaint.objects.filter(status='Completed', user=self.request.user).count()
-        pending_comp = Complaint.objects.filter(status='Pending', user=self.request.user).count()
-        In_progress_comp = Complaint.objects.filter(status='In Process', user=self.request.user).count()
+        resolved_comp = Complaint.objects.filter(
+            user=self.request.user
+        ).filter(
+            Q(status__iexact='Completed') | Q(status__iexact='resolved')
+        ).count()
+        pending_comp = Complaint.objects.filter(status__iexact='Pending', user=self.request.user).count()
+        In_progress_comp = Complaint.objects.filter(
+            user=self.request.user
+        ).filter(
+            Q(status__iexact='In Process') | Q(status__iexact='in_progress') | Q(status__iexact='in-progress')
+        ).count()
         total_categories = Category.objects.all().count()
+        total_users = CustomUser.objects.all().count()
+        total_departments = Department.objects.all().count()
+        sla = (resolved_comp / total_comp * 100) if total_comp > 0 else 0
         return Response({
             'total_complaints': total_comp,
             'Resolved_complaints': resolved_comp,
             'Pending_complaints': pending_comp,
-            'SLA_complaince': (resolved_comp / total_comp * 100) if total_comp > 0 else 0,
+            'SLA_complaince': sla,
             'in_progress_complaints': In_progress_comp,
-            'total_categories': total_categories
+            'total_categories': total_categories,
+            # Backward-compatible normalized keys for newer clients:
+            'resolved_complaints': resolved_comp,
+            'pending_complaints': pending_comp,
+            'sla_compliance': round(sla, 1),
+            'total_users': total_users,
+            'total_departments': total_departments,
         })
 
 
@@ -184,9 +201,13 @@ class complaintinfo(APIView):
         try:
             # Get overall statistics for public display
             total_comp = Complaint.objects.all().count()
-            resolved_comp = Complaint.objects.filter(status='Completed').count()
-            pending_comp = Complaint.objects.filter(status='Pending').count()
-            in_progress_comp = Complaint.objects.filter(status='In Process').count()
+            resolved_comp = Complaint.objects.filter(
+                Q(status__iexact='Completed') | Q(status__iexact='resolved')
+            ).count()
+            pending_comp = Complaint.objects.filter(status__iexact='Pending').count()
+            in_progress_comp = Complaint.objects.filter(
+                Q(status__iexact='In Process') | Q(status__iexact='in_progress') | Q(status__iexact='in-progress')
+            ).count()
             total_categories = Category.objects.all().count()
             total_users = CustomUser.objects.all().count()
             total_departments = Department.objects.all().count()
