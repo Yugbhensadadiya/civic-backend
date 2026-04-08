@@ -34,16 +34,20 @@ def _get_user_department(user):
 def _dept_complaint_qs(dept):
     """
     Return complaints scoped to a department.
-    Matches on Category.name (full display name e.g. 'Water Supply')
-    OR Category.code (dept category code e.g. 'WATER') OR Category.department.
+    Matches on Category.name (full display name e.g. 'Water Supply'),
+    Department.name (custom title), Category.code, or Category.department code.
     """
     dept_label = dept.get_category_display()   # e.g. 'Water Supply'
     dept_code  = dept.category                 # e.g. 'WATER'
-    return Complaint.objects.filter(
-        Q(Category__name=dept_label) |
-        Q(Category__code=dept_code) |
-        Q(Category__department=dept_code)
+    dept_name  = (dept.name or '').strip()
+    q = (
+        Q(Category__name=dept_label)
+        | Q(Category__code=dept_code)
+        | Q(Category__department=dept_code)
     )
+    if dept_name:
+        q |= Q(Category__name=dept_name)
+    return Complaint.objects.filter(q)
 
 
 # ─── Public department list (no auth — used by raise-complaint form) ─────────

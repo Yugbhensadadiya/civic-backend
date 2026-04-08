@@ -30,12 +30,10 @@ class deptSerializer(serializers.ModelSerializer):
         return None
     
     def get_officer_count(self, obj):
-        # Count distinct Officer records that have complaints in this department's category
-        from complaints.models import Complaint
-        return Complaint.objects.filter(
-            Category__department=obj.category,
-            officer_id__isnull=False
-        ).values('officer_id').distinct().count()
+        # Match department_statistics: officers linked via M2M users and/or Officer FK rows.
+        m2m_user_count = obj.officers.count()
+        officer_fk_count = Officer.objects.filter(department=obj).count()
+        return max(m2m_user_count, officer_fk_count)
 
 class OfficerSerializer(serializers.ModelSerializer):
     department_name = serializers.SerializerMethodField()

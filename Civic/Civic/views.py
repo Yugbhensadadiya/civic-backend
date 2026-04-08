@@ -506,16 +506,47 @@ class officerprofile(APIView):
 
 
 class officerkpi(APIView):
+    """
+    KPIs for officers list pages. Admin users see system-wide counts.
+    Department-User and Officer roles see counts scoped to their department.
+    Officer model uses is_available for active vs inactive.
+    """
+
     def get(self, request):
-        total_officers = Officer.objects.all().count()
-        active_officers = Officer.objects.filter(is_available=True).count()
-        total_assigned = Complaint.objects.exclude(officer_id=None).count()
-        resolved_comp = Complaint.objects.filter(status='Completed').count()
-        total_comp = Complaint.objects.all().count()
+        from departments.views import _get_user_department
+
+        user = getattr(request, 'user', None)
+        dept = None
+        if user and getattr(user, 'is_authenticated', False):
+            role = getattr(user, 'User_Role', None) or ''
+            if role == 'Department-User':
+                dept = _get_user_department(user)
+            elif role == 'Officer':
+                email = (getattr(user, 'email', None) or '').strip()
+                off = Officer.objects.filter(email__iexact=email).first() if email else None
+                if not off:
+                    off = Officer.objects.filter(officer_id=f'OFF{user.id}').first()
+                if not off and getattr(user, 'username', None):
+                    off = Officer.objects.filter(officer_id=user.username).first()
+                dept = off.department if off else None
+
+        officer_qs = Officer.objects.all()
+        complaint_qs = Complaint.objects.all()
+        if dept:
+            officer_qs = officer_qs.filter(department=dept)
+            complaint_qs = complaint_qs.filter(officer_id__department=dept)
+
+        total_officers = officer_qs.count()
+        active_officers = officer_qs.filter(is_available=True).count()
+        inactive_officers = officer_qs.filter(is_available=False).count()
+        total_assigned = complaint_qs.filter(officer_id__isnull=False).count()
+
+        resolved_comp = complaint_qs.filter(status='Completed').count()
+        total_comp = complaint_qs.count()
         sla_compliance = (resolved_comp / total_comp * 100) if total_comp > 0 else 0
 
         overloaded = 0
-        for officer in Officer.objects.all():
+        for officer in officer_qs:
             active_count = Complaint.objects.filter(officer_id=officer.officer_id).exclude(status='Completed').count()
             if active_count > 20:
                 overloaded += 1
@@ -523,6 +554,7 @@ class officerkpi(APIView):
         return Response({
             'total_officers': total_officers,
             'active_officers': active_officers,
+            'inactive_officers': inactive_officers,
             'total_assigned': total_assigned,
             'sla_compliance': round(sla_compliance, 1),
             'overloaded': overloaded
@@ -1771,39 +1803,55 @@ class UserDistrictWise(APIView):
 
 
 class UserMonthlyRegistrations(APIView):
+    """
+    Monthly signup counts aligned with Admin user list (`created_join` is exposed as date_joined there).
+    Supports ?year=YYYY (defaults to current calendar year). Always returns 12 months (Jan–Dec).
+    """
+
     def get(self, request):
         try:
-            
-            # Get current year
-            current_year = datetime.now().year
-            
-            # Initialize monthly data for current year
-            monthly_data = {}
-            for month_num in range(1, 13):
-                month_name = calendar.month_name[month_num]
-                monthly_data[month_name] = 0
-            
-            # Count user registrations by month for current year
+            year_param = request.query_params.get('year')
+            if year_param and str(year_param).isdigit():
+                target_year = int(year_param)
+            else:
+                target_year = datetime.now().year
+
+            # 12 integers: index 0 = January … index 11 = December
+            monthly_users = [0] * 12
+
             users_by_month = (
-                CustomUser.objects
-                .filter(created_join__year=current_year)
+                CustomUser.objects.filter(created_join__year=target_year)
                 .annotate(month=ExtractMonth('created_join'))
                 .values('month')
                 .annotate(count=Count('id'))
                 .order_by('month')
             )
-            
-            # Fill in actual counts
+
             for item in users_by_month:
-                month_name = calendar.month_name[item['month']]
-                monthly_data[month_name] = item['count']
-            
+                m = item.get('month')
+                if m is None:
+                    continue
+                try:
+                    mi = int(m)
+                except (TypeError, ValueError):
+                    continue
+                if 1 <= mi <= 12:
+                    monthly_users[mi - 1] = item.get('count') or 0
+
+            monthly_data = {}
+            for month_num in range(1, 13):
+                month_name = calendar.month_name[month_num]
+                monthly_data[month_name] = monthly_users[month_num - 1]
+
+            total_registrations = CustomUser.objects.filter(created_join__year=target_year).count()
+
             return Response({
-                'year': current_year,
+                'year': target_year,
                 'monthly_data': monthly_data,
-                'total_registrations': CustomUser.objects.filter(created_join__year=current_year).count()
+                'monthly_users': monthly_users,
+                'total_registrations': total_registrations,
             })
-            
+
         except Exception as e:
             return Response({
                 'error': str(e),
