@@ -125,6 +125,7 @@ urlpatterns = [
     path('api/UserDistrictWise/',views.UserDistrictWise.as_view(),name='UserDistrictWise'),
     path('api/user-registrations/monthly/', UserMonthlyRegistrations.as_view(), name='user-monthly-registrations'),
     path('api/user/stats/', views.UserStatsView.as_view(), name='user-stats'),
+    path('api/stats/', views.GlobalStatsView.as_view(), name='global-stats'),
 ]
 
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

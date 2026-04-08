@@ -8,7 +8,7 @@ from rest_framework.generics import ListAPIView, CreateAPIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.core.mail import send_mail
@@ -280,6 +280,35 @@ class UserStatsView(APIView):
 
         return Response({
             'total': total,
+            'resolved': resolved,
+            'pending': pending,
+            'sla': sla,
+            'categories': categories,
+            'users': users_count,
+        })
+
+
+class GlobalStatsView(APIView):
+    """
+    GET /api/stats/ — system-wide platform statistics for the public home page.
+    Uses the same status rules as complaintinfo (Completed/Pending; case-insensitive aliases).
+    """
+
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def get(self, request):
+        total_complaints = Complaint.objects.count()
+        resolved = Complaint.objects.filter(
+            Q(status__iexact='Completed') | Q(status__iexact='resolved')
+        ).count()
+        pending = Complaint.objects.filter(status__iexact='Pending').count()
+        categories = Department.objects.count()
+        users_count = CustomUser.objects.count()
+        sla = round((resolved / total_complaints) * 100, 1) if total_complaints > 0 else 0.0
+
+        return Response({
+            'total_complaints': total_complaints,
             'resolved': resolved,
             'pending': pending,
             'sla': sla,
