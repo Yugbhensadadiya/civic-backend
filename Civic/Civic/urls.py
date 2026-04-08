@@ -124,6 +124,7 @@ urlpatterns = [
     path('api/department/upload-image/', views.DepartmentUploadImage.as_view(), name='department-upload-image'),
     path('api/UserDistrictWise/',views.UserDistrictWise.as_view(),name='UserDistrictWise'),
     path('api/user-registrations/monthly/', UserMonthlyRegistrations.as_view(), name='user-monthly-registrations'),
+    path('api/user/stats/', views.UserStatsView.as_view(), name='user-stats'),
 ]
 
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

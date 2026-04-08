@@ -232,6 +232,62 @@ class complaintinfo(APIView):
             }, status=500)
 
 
+class UserStatsView(APIView):
+    """
+    Home-page statistics scoped to the logged-in user (role-based).
+    Citizen: own complaints; Officer: assigned complaints; Department: department complaints;
+    Admin-User: global counts (same as public totals for complaints).
+    GET /api/user/stats/
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from departments.models import Officer as OfficerModel, Department
+        from departments.views import _get_user_department, _dept_complaint_qs
+
+        user = request.user
+        role = getattr(user, 'User_Role', None) or ''
+
+        if role == 'Admin-User':
+            qs = Complaint.objects.all()
+        elif role == 'Civic-User':
+            qs = Complaint.objects.filter(user=user)
+        elif role == 'Department-User':
+            dept = _get_user_department(user)
+            qs = _dept_complaint_qs(dept) if dept else Complaint.objects.none()
+        elif role == 'Officer':
+            email = (getattr(user, 'email', None) or '').strip()
+            off = OfficerModel.objects.filter(email__iexact=email).first() if email else None
+            if not off:
+                off = OfficerModel.objects.filter(officer_id=f'OFF{user.id}').first()
+            if not off and getattr(user, 'username', None):
+                off = OfficerModel.objects.filter(officer_id=user.username).first()
+            qs = Complaint.objects.filter(officer_id=off) if off else Complaint.objects.none()
+        else:
+            qs = Complaint.objects.filter(user=user)
+
+        total = qs.count()
+        resolved = qs.filter(
+            Q(status__iexact='Completed') | Q(status__iexact='resolved')
+        ).count()
+        pending = qs.filter(status__iexact='Pending').count()
+
+        sla = round((resolved / total) * 100, 1) if total > 0 else 0.0
+
+        categories = Department.objects.count()
+        users_count = CustomUser.objects.count()
+
+        return Response({
+            'total': total,
+            'resolved': resolved,
+            'pending': pending,
+            'sla': sla,
+            'categories': categories,
+            'users': users_count,
+        })
+
+
 @api_view(['GET'])
 def complaintDetails(request, pk):
     try:
