@@ -83,7 +83,7 @@ class LoginView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        email = request.data.get('email')
+        email = (request.data.get('email') or '').strip().lower()
         password = request.data.get('password')
 
         if not email or not password:
@@ -93,7 +93,7 @@ class LoginView(APIView):
             )
 
         try:
-            user = CustomUser.objects.get(email=email)
+            user = CustomUser.objects.get(email__iexact=email)
             if user.check_password(password):
                 if not user.is_active:
                     return Response(
