@@ -31,6 +31,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 
 
 urlpatterns = [
+    path('health/', views.health_check, name='health-check'),
     path('favicon.ico', RedirectView.as_view(url='/static/favicon.ico')),
     path('admin/', admin.site.urls),
     path('api/raisecomplaint/',CreateComplaintView.as_view(),name='raisecomplaint'),

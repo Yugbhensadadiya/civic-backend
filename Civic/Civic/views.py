@@ -16,6 +16,11 @@ from django.http import JsonResponse
 from django.conf import settings
 
 
+def health_check(request):
+    """Simple health endpoint for uptime monitors."""
+    return JsonResponse({"status": "ok"})
+
+
 class StandardResultsSetPagination(PageNumberPagination):
     # Default items per page
     page_size = 6
